@@ -1,0 +1,19 @@
+{
+  "name": "netronome",
+  "version": "1.0.0",
+  "description": "rock solid js timing experiments",
+  "main": "index.js",
+  "repository": "https://github.com/designerzen/netronome.git",
+  "author": "designerzen",
+  "license": "MIT",
+  "devDependencies": {
+    "snowpack": "^2.5.2"
+  },
+  "scripts": {
+    "start": "snowpack dev",
+    "build": "snowpack build",
+    "format": "prettier --write \"src/**/*.js\"",
+    "lint": "prettier --check \"src/**/*.js\"",
+    "test": "echo \"This template does not include a test runner by default.\" && exit 1"
+  }
+}

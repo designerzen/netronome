@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Netronome tests</title>
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="description" content="Netronome testing" />
+    <link rel="stylesheet" type="text/css" href="/index.css" />
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <script type="module" src="/_dist_/index.js"></script>
+   
+    <select id="mode">
+      <option value="setinterval">setTimeout</option>
+      <option value="requestframe">requestFrame</option>
+      <option>other?</option>
+    </select>
+    <button id="start">Activate</button>
+    <button id="stop">De-activate</button> 
+
+    <table>
+      <thead>
+        <th>Interval</th>
+        <th>Expected</th>
+        <th>AudioContext.time</th>
+        <th>Performance.now</th>
+        <th>Drift</th>
+        <th>Lag</th>
+        <th>Mode</th>
+      </thead>
+      <tbody id="feedback"></tbody>
+
+    </table>
+  </body>
+</html>
