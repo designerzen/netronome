@@ -20,7 +20,7 @@ startButton.addEventListener( 'click', event => {
 
         console.log("Timer", {timePassed, elapsed, expected, drift, level, intervals, lag} )
         feedback.innerHTML +=  `<tr>
-                                    <td>${intervals}s</td>
+                                    <td>${intervals}</td>
                                     <td>${expected}s</td>
                                     <td>${elapsed}s</td>
                                     <td>${timePassed}s</td>
@@ -43,7 +43,8 @@ startButton.addEventListener( 'click', event => {
 
     //     console.log("Timer", {timePassed, elapsed, expected, drift, level, lag} )
     // })
-
+    event.preventDefault()
+    return false
 
 }, true)
 
@@ -66,6 +67,9 @@ stopButton.addEventListener( 'click', event => {
                                 <td><strong>average lag</strong> ${averageLag}</td>
                                 <td><strong>average drift</strong>${averageDrifts}</td>
                             </tr>`
+
+    event.preventDefault()
+    return false
 
 }, true)
 

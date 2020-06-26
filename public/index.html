@@ -12,13 +12,17 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <script type="module" src="/_dist_/index.js"></script>
    
-    <select id="mode">
-      <option value="setinterval">setTimeout</option>
-      <option value="requestframe">requestFrame</option>
-      <option>other?</option>
-    </select>
-    <button id="start">Activate</button>
-    <button id="stop">De-activate</button> 
+    <form id="controls">
+      <select id="mode">
+        <option value="settimeout">setTimeout</option>
+        <option value="setinterval">setInterval</option>
+        <option value="requestframe">requestFrame</option>
+        <option value="audiocontext">audioContext</option>
+        <option>other?</option>
+      </select>
+      <button id="start">Activate</button>
+      <button id="stop">De-activate</button> 
+    </form>
 
     <table>
       <thead>

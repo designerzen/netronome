@@ -11,6 +11,7 @@ let timerID = null
 let isRunning = false
 let startTime = -1
 let currentTime = -1
+// assumes a constant tempo
 let gap = -1
 let intervals = 0
 
@@ -19,11 +20,13 @@ const elapsed = () => (performance.now() - startTime) * 0.001
 const loop = interval => {
     
     // Loop
-    timerID = setTimeout( ()=>{
+    timerID = setInterval( ()=>{
 
         const expected = intervals * gap * 0.001
         const passed = elapsed()
         const difference = expected - passed
+        
+        // if the difference is too great, restart with different interval?
 
         currentTime = performance.now()
         
@@ -76,6 +79,9 @@ self.onmessage = e => {
 
     const data = e.data
 
+    // If we want to get a specific time from outside of this context we need to proxy
+    // which is slow but possible
+    // postMessage({ event:EVENT_TICK, time:passed, intervals })
     switch (data.command)
     {
         case CMD_START:

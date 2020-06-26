@@ -9,7 +9,8 @@ const AudioContext = window.AudioContext || window.webkitAudioContext
 
 // different timing options
 //const mode = "requestframe"
-let mode = "setinterval"
+// let mode = "setinterval"
+let mode = "settimeout"
 
 const prefix = "/_dist_/" // .
 
@@ -19,6 +20,9 @@ let timingWorker = new Worker(`${prefix}/timing.${mode}.worker.js`)
 let startTime = -1
 let audioContext = null
 let isRunning = false
+
+
+const elapsed = () => (audioContext.currentTime - startTime) * 0.001
 
 export const setMode = newMode => {
     // check to see if in array of acceptable types
@@ -104,7 +108,7 @@ export const start = (callback, interval=200) => {
     }
 
     // send command to worker
-    timingWorker.postMessage({command:CMD_START, time:audioContext.currentTime, interval})
+    timingWorker.postMessage({command:CMD_START, time:audioContext.currentTime, interval })
     console.log("Starting...", {audioContext, interval, timingWorker} )
 
     // methods that can be chained?
