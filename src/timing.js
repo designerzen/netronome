@@ -36,14 +36,16 @@ export const setMode = newMode => {
     }
 }
 
-export const getMode = () => mode
-
-export const setInterval = newInterval => {
-    //interval = newInterval
+export const setTimeBetween = time => {
+    interval = time
+    // if it is running, stop and restart it?
+     //interval = newInterval
     // TODO
     // FIXME
     // timingWorker.postMessage({command:CMD_UPDATE, interval:newInterval, time:currentTime})
 }
+
+export const getMode = () => mode
 
 export const start = (callback, interval=200) => {
 
@@ -105,6 +107,7 @@ export const start = (callback, interval=200) => {
     // Error!
     timingWorker.onerror = error =>{
         console.error("error...", {error} )
+        timingWorker.postMessage({error, time:audioContext.currentTime })
     }
 
     // send command to worker

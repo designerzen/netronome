@@ -13,6 +13,8 @@
     <script type="module" src="/_dist_/index.js"></script>
    
     <form id="controls">
+
+      <label>Mode</label>
       <select id="mode">
         <option value="settimeout">setTimeout</option>
         <option value="setinterval">setInterval</option>
@@ -20,8 +22,19 @@
         <option value="audiocontext">audioContext</option>
         <option>other?</option>
       </select>
-      <button id="start">Activate</button>
-      <button id="stop">De-activate</button> 
+
+      <label>Interval</label>
+      <select id="interval">
+        <option value="10">10</option>
+        <option value="100">100</option>
+        <option value="1000">1000</option>
+        <option value="50">50</option>
+      </select>
+
+      <button id="start" type="button">Activate</button>
+      <button id="stop" type="button">De-activate</button> 
+      <button id="reset" type="button">Reset</button> 
+
     </form>
 
     <table>
