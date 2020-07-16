@@ -68,6 +68,7 @@ stopButton.addEventListener("click", (event) => {
 }, true);
 intervalSelector.addEventListener("change", (event) => {
   const interval2 = parseInt(event.target.value);
+  setTimeBetween(interval2);
 }, true);
 modeSelector.addEventListener("change", (event) => {
   setMode(event.target.value);
