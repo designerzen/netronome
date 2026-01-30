@@ -574,28 +574,7 @@ export default class Timer {
         }
         
         try {
-            let workerUrl = type
-            
-            // Handle data URLs (base64 encoded) by converting to blob
-            if (workerUrl.startsWith('data:')) {
-                const dataUrl = new URL(workerUrl)
-                const base64 = workerUrl.split(',')[1]
-                if (base64) {
-                    const binaryString = atob(base64)
-                    const bytes = new Uint8Array(binaryString.length)
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i)
-                    }
-                    const blob = new Blob([bytes], { type: 'application/javascript' })
-                    workerUrl = URL.createObjectURL(blob)
-                }
-            }
-            // Handle relative URLs by making them absolute with the base path
-            else if (!workerUrl.startsWith('http')) {
-                workerUrl = new URL(workerUrl, import.meta.url).href
-            }
-            
-            const worker = new Worker(workerUrl, { type: 'module' })
+            const worker = new Worker(type, { type: 'module' })
             return worker
         } catch (error) {
             console.error('Failed to create worker from URL:', type, error)

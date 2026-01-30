@@ -1,5 +1,5 @@
 // All available timing worker implementations
-// Using ?url to get absolute paths that resolve correctly with the base path
+// Using ?url to get file URLs that will be properly transpiled by Vite
 import AUDIOCONTEXT_WORKER_URI from './workers/timing.audiocontext.worker.ts?url'
 import AUDIOCONTEXT_WORKLET_URI from './workers/timing.audioworklet.ts?url'
 import AUDIOWORKLET_PROCESSOR_URI from './workers/timing.audioworklet-processor.ts?url'

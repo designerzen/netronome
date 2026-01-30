@@ -20,7 +20,11 @@ export default defineConfig({
   server: {
     port: 3000,
     https: process.env.HTTPS === 'true',
-    open: true
+    open: true,
+    mimeTypes: {
+      'js': 'application/javascript',
+      'mjs': 'application/javascript'
+    }
   },
   preview: {
     port: 4173
