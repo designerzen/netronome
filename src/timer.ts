@@ -99,10 +99,10 @@ export default class Timer {
     lastRecordedTime: number = 0
     lastRecordedExternalTime: number = 0
 
-    isRunning: boolean = false
+    #running: boolean = false
+    #active: boolean = false
+    #bypassed: boolean = false
     isCompatible: boolean = false
-    isBypassed: boolean = false
-    isActive: boolean = false
 
     timingWorkHandler: TimingHandler = null
     audioContext?: AudioContext
@@ -120,16 +120,30 @@ export default class Timer {
      * Can we use this timing method on this device?
      * @returns boolean is the worker available and compatable
      */
-    get available(): boolean {
-        return this.isCompatible
+    get isRunning():boolean{
+        return this.#running
+    }
+    get running(): boolean {
+        return this.#running
     }
 
     /**
      * Can we use this timing method on this device?
      * @returns boolean is the worker available and compatable
      */
-    get running(): boolean {
-        return this.isRunning
+    get available(): boolean {
+        return this.isCompatible
+    }
+
+    get isBypassed():boolean {
+        return this.#bypassed
+    }
+    
+    /**
+     * 
+     */
+    get isActive(): boolean {
+        return this.#active
     }
 
     /**
@@ -308,7 +322,7 @@ export default class Timer {
         return this.divisionsElapsed % this.swingOffset === 0
     }
     get isUsingExternalTrigger(): boolean {
-        return this.isBypassed
+        return this.#bypassed
     }
 
     // Setters ------------------------------------------------------
@@ -444,12 +458,12 @@ export default class Timer {
         }
 
         if (useExternalClock) {
-            if (this.isBypassed) {
+            if (this.#bypassed) {
                 return trigger
             }
             // we want to bypass the worker's work
-            this.isBypassed = true
-            if (this.isRunning) {
+            this.#bypassed = true
+            if (this.#running) {
                 // disconnect but don't destroy
                 this.disconnectWorker(this.timingWorkHandler, false)
                 console.info("timer runinng, bypassing... ")
@@ -458,11 +472,11 @@ export default class Timer {
             }
 
         } else {
-            if (!this.isBypassed) {
+            if (!this.#bypassed) {
                 return trigger
             }
-            this.isBypassed = false
-            if (this.isRunning) {
+            this.#bypassed = false
+            if (this.#running) {
                 this.startTimer()
                 console.info("restarting timer... ")
             } else {
@@ -506,7 +520,7 @@ export default class Timer {
         // deterministic intervals not neccessary
         const level = Math.floor(timePassed / this.timeBetween)
         // elapsed should === time
-        if (this.isRunning) {
+        if (this.#running) {
             this.onTick(timePassed, expected, drift, level, intervals, lag)
         }
     }
@@ -522,7 +536,7 @@ export default class Timer {
      */
     async setTimingWorklet(type: string, processor: string, audioContext?: AudioContext): Promise<TimingHandler> {
 
-        let wasRunning = this.isRunning
+        let wasRunning = this.#running
 
         // destroy any existing worklet
         if (this.timingWorkHandler) {
@@ -580,7 +594,7 @@ export default class Timer {
     async setTimingWorker(type: string): Promise<Worker | null> {
         try {
 
-            let wasRunning = this.isRunning
+            let wasRunning = this.#running
 
             // destroy any existing worker
             if (this.timingWorkHandler) {
@@ -657,7 +671,7 @@ export default class Timer {
                 case EVENT_STARTING:
                     // save start time
                     this.startTime = time
-                    this.isRunning = true
+                    this.#running = true
                     this.resetTimer()
                     //console.log("EVENT_STARTING", {time:data.time, startTime})
                     break
@@ -717,7 +731,7 @@ export default class Timer {
                 case EVENT_STOPPING:
                     // destroy contexts and unsubscribe from events
                     if (setStopped) {
-                        this.isRunning = false
+                        this.#running = false
                     }
                     break
             }
@@ -766,7 +780,7 @@ export default class Timer {
 
         const currentTime = this.now
 
-        if (!this.isRunning) {
+        if (!this.#running) {
             // FIXME: Alter this behaviour for rolling count
             this.totalBarsElapsed = 0
         }
@@ -777,8 +791,8 @@ export default class Timer {
 
         // if we are using an external clock
         // we try and determine the tempo ourselves
-        if (this.isBypassed) {
-            this.isRunning = true
+        if (this.#bypassed) {
+            this.#running = true
             return {
                 time: currentTime,
                 interval: -1,
@@ -838,16 +852,16 @@ export default class Timer {
         callback?: (event: TimerCallbackEvent) => void,
         options: Record<string, unknown> = {}
     ): Promise<boolean> {
-        if (this.isBypassed) {
+        if (this.#bypassed) {
             // we are using an external timer!
-            return this.isRunning
+            return this.#running
         }
-        if (!this.isRunning) {
+        if (!this.#running) {
             await this.startTimer(callback, options)
         } else {
             await this.stopTimer()
         }
-        return this.isRunning
+        return this.#running
     }
 
     /**
@@ -890,7 +904,7 @@ export default class Timer {
 
         // console.log("MIDI CLOCK", BPM, period, elapsedSinceLastClock, timestamp )
 
-        if (this.isRunning && this.isBypassed) {
+        if (this.#running && this.#bypassed) {
             this.onTick(elapsedSinceLastClock, expected, drift, level, this.divisionsElapsed, lag)
         }
         if (advance) {

@@ -17,14 +17,14 @@ export const Ticks = {
  * @param {Number} bpm beats per minute
  * @returns {Number} time in milliseconds
  */
-export const convertBPMToPeriod = (bpm) => MICROSECONDS_PER_MINUTE / parseFloat(bpm)
+export const convertBPMToPeriod = (bpm: number) => MICROSECONDS_PER_MINUTE / parseFloat(String(bpm))
 
 /**
  * Convert a period in ms to a BPM
  * @param {Number} period millisecods
  * @returns {Number} time in milliseconds
  */
-export const convertPeriodToBPM = (period) => MICROSECONDS_PER_MINUTE / parseFloat(period)
+export const convertPeriodToBPM = (period: number) => MICROSECONDS_PER_MINUTE / parseFloat(String(period))
 
 /**
  * Convert a midi clock to BPM
@@ -32,7 +32,7 @@ export const convertPeriodToBPM = (period) => MICROSECONDS_PER_MINUTE / parseFlo
  * @param {Number} pulsesPerQuarterNote  MIDI clock sends 24 pulses per quarter note (PPQN)
  * @returns Number
  */
-export const convertMIDIClockIntervalToBPM = (millisecondsPerClockEvent, pulsesPerQuarterNote = 24) => {
+export const convertMIDIClockIntervalToBPM = (millisecondsPerClockEvent: number, pulsesPerQuarterNote = 24) => {
 
     // Calculate the time for one quarter note in milliseconds
     // If 1 clock event takes `millisecondsPerClockEvent` ms,

@@ -62,7 +62,7 @@ export default class AudioTimer extends Timer {
 	 * @param {*} callback 
 	 * @param {*} options 
 	 */
-	startTimer( callback?: Function, options: any = {} ){
+	async startTimer( callback?: ((event: any) => void), options: Record<string, unknown> = {} ){
 		
 		// on Safari macOS/iOS, the audioContext is suspended if it's not created
 		// in the event handler of a user action: we attempt to resume it.
@@ -70,6 +70,6 @@ export default class AudioTimer extends Timer {
 		{
 			this.audioContext.resume()
 		}
-		super.startTimer(callback, options)
+		return await super.startTimer(callback, options)
 	}
 }
