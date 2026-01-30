@@ -1,17 +1,34 @@
 {
   "name": "netronome",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "rock solid js timing experiments",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "module": "dist/index.es.js",
+  "types": "dist/index.d.ts",
   "repository": "https://github.com/designerzen/netronome.git",
   "author": "designerzen",
   "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
   "devDependencies": {
-    "snowpack": "^2.5.2"
+    "@vitejs/plugin-basic-ssl": "^2.1.4",
+    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/ui": "^4.0.18",
+    "jsdom": "^27.4.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   },
   "scripts": {
-    "start": "snowpack dev",
-    "build": "snowpack build",
-    "test": "echo \"This template does not include a test runner by default.\" && exit 1"
+    "dev": "vite",
+    "dev:secure": "HTTPS=true npm run dev",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "lint:types": "tsc --strict --noEmit",
+    "upgrader": "npx npm-check-updates --interactive -u"
   }
 }
