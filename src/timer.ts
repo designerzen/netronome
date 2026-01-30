@@ -8,8 +8,7 @@ import {
     EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 } from './timer-event-types'
 
-import AUDIOCONTEXT_WORKER_URI from './workers/timing.audiocontext.worker.ts?url'
-import AUDIOCONTEXT_WORKLET_URI from './workers/timing.audioworklet.ts?url'
+import { AUDIOCONTEXT_WORKER_URI, AUDIOCONTEXT_WORKLET_URI } from './timer-worker-types'
 
 import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
@@ -57,9 +56,9 @@ const DEFAULT_TIMER_OPTIONS: TimerOptions = {
 
     // can be base64 encoded too
     type: AUDIOCONTEXT_WORKER_URI,
-
     // type:AUDIOTIMER_WORKLET_URI,
     // processor:AUDIOTIMER_PROCESSOR_URI,
+
     callback: null
 }
 
