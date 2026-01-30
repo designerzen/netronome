@@ -1,6 +1,5 @@
 // Netronome - Timing Experiments
 import { startTimer, stopTimer, setTimeBetween, createTimer } from './src/timer-global'
-
 import {
     AUDIOCONTEXT_WORKER_URI,
     AUDIOCONTEXT_WORKLET_URI,
