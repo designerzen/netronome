@@ -26,9 +26,9 @@ const WORKER_TYPES: Record<string, string> = {
 
 // UI Elements
 const feedbackTable = document.getElementById('feedback')!
-const startBtn = document.getElementById('start')!
-const stopBtn = document.getElementById('stop')!
-const resetBtn = document.getElementById('reset')!
+const startBtn = document.getElementById('start') as HTMLButtonElement
+const stopBtn = document.getElementById('stop') as HTMLButtonElement
+const resetBtn = document.getElementById('reset') as HTMLButtonElement
 const workerTypeSelector = document.getElementById('worker-type') as HTMLSelectElement
 const intervalInput = document.getElementById('interval') as HTMLInputElement
 
