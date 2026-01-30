@@ -33,6 +33,7 @@ const workerTypeSelector = document.getElementById('worker-type') as HTMLSelectE
 const intervalInput = document.getElementById('interval') as HTMLInputElement
 const bpmSlider = document.getElementById('bpm') as HTMLInputElement
 const bpmValue = document.getElementById('bpm-value')!
+const themeToggle = document.getElementById('theme-toggle') as HTMLButtonElement
 
 // Stats Elements
 const statIntervals = document.getElementById('stat-intervals')!
@@ -183,3 +184,31 @@ bpmSlider.addEventListener('input', (event) => {
         setTimeBetween(newInterval)
     }
 })
+
+// Theme Toggle
+const initTheme = () => {
+    const savedTheme = localStorage.getItem('theme')
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const isDark = savedTheme === 'dark' || (savedTheme === null && prefersDark)
+    
+    if (isDark) {
+        document.documentElement.style.colorScheme = 'dark'
+        themeToggle.textContent = '☀️ Light'
+    } else {
+        document.documentElement.style.colorScheme = 'light'
+        themeToggle.textContent = '🌙 Dark'
+    }
+}
+
+themeToggle.addEventListener('click', () => {
+    const currentScheme = document.documentElement.style.colorScheme
+    const isDark = currentScheme === 'dark'
+    const newScheme = isDark ? 'light' : 'dark'
+    
+    document.documentElement.style.colorScheme = newScheme
+    localStorage.setItem('theme', newScheme)
+    
+    themeToggle.textContent = isDark ? '🌙 Dark' : '☀️ Light'
+})
+
+initTheme()
