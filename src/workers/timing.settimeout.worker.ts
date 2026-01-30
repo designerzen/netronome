@@ -13,7 +13,7 @@ interface WorkerMessage {
 	accurateTiming?: boolean
 }
 
-let timerID: number | null = null
+let timerID: ReturnType<typeof setTimeout> | null = null
 let isRunning: boolean = false
 let startTime: number = -1
 let currentTime: number = -1

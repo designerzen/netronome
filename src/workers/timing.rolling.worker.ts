@@ -17,7 +17,7 @@ let currentTime: number = -1
 let nextInterval: number = -1
 let gap: number = 0
 let intervals: number = 0
-let timerID: number = -1
+let timerID: ReturnType<typeof setTimeout> | -1 = -1
 let exit: boolean = false
 let accurateTiming: boolean = true
 
