@@ -9,7 +9,7 @@ let globalTimer: Timer | null = null
  * Start a timer with a callback
  * @param callback - Function to call on each tick
  * @param interval - Interval in milliseconds
- * @param options - Timer options
+ * @param options - Timer options (can include 'type' for worker URI)
  * @returns Timer instance
  */
 export function startTimer(
@@ -17,6 +17,12 @@ export function startTimer(
   interval: number = 1000,
   options: any = {}
 ) {
+  // If worker type changed, recreate timer with new worker
+  if (globalTimer && options.type && globalTimer.timingWorkHandler) {
+    globalTimer.stopTimer()
+    globalTimer = null
+  }
+
   if (!globalTimer) {
     globalTimer = new Timer({
       ...options,

@@ -1,5 +1,10 @@
 // Netronome - Timing Experiments
-import { startTimer, stopTimer, setTimeBetween } from './timer-global'
+import { startTimer, stopTimer, setTimeBetween, createTimer } from './timer-global'
+
+import AUDIOCONTEXT_WORKER_URI from './workers/timing.audiocontext.worker.ts?url'
+import ROLLING_WORKER_URI from './workers/timing.rolling.worker.ts?url'
+import SETINTERVAL_WORKER_URI from './workers/timing.setinterval.worker.ts?url'
+import SETTIMEOUT_WORKER_URI from './workers/timing.settimeout.worker.ts?url'
 
 interface TimerEvent {
     timePassed: number
@@ -11,12 +16,20 @@ interface TimerEvent {
     lag: number
 }
 
+// Worker URIs mapping
+const WORKER_TYPES: Record<string, string> = {
+    audiocontext: AUDIOCONTEXT_WORKER_URI,
+    rolling: ROLLING_WORKER_URI,
+    setinterval: SETINTERVAL_WORKER_URI,
+    settimeout: SETTIMEOUT_WORKER_URI
+}
+
 // UI Elements
 const feedbackTable = document.getElementById('feedback')!
 const startBtn = document.getElementById('start')!
 const stopBtn = document.getElementById('stop')!
 const resetBtn = document.getElementById('reset')!
-const modeSelector = document.getElementById('mode') as HTMLSelectElement
+const workerTypeSelector = document.getElementById('worker-type') as HTMLSelectElement
 const intervalInput = document.getElementById('interval') as HTMLInputElement
 
 // Stats Elements
@@ -31,6 +44,7 @@ let lags: number[] = []
 let drifts: number[] = []
 let tickCount = 0
 let isRunning = false
+let currentWorkerType = 'audiocontext'
 
 const reset = () => {
     lags = []
@@ -43,7 +57,7 @@ const reset = () => {
     feedbackTable.innerHTML = '<tr class="empty-state"><td colspan="6">Click Start to begin collecting timing data</td></tr>'
 }
 
-startBtn.addEventListener('click', () => {
+startBtn.addEventListener('click', async () => {
     if (isRunning) return
     
     reset()
@@ -51,8 +65,13 @@ startBtn.addEventListener('click', () => {
     
     startBtn.disabled = true
     stopBtn.disabled = false
-    modeSelector.disabled = true
+    workerTypeSelector.disabled = true
     intervalInput.disabled = true
+
+    // Get the selected worker type
+    const selectedType = workerTypeSelector.value
+    currentWorkerType = selectedType
+    const workerUri = WORKER_TYPES[selectedType]
 
     startTimer(({ timePassed, elapsed, expected, drift, level, intervals, lag }: TimerEvent) => {
         tickCount++
@@ -91,7 +110,7 @@ startBtn.addEventListener('click', () => {
         statTicks.textContent = tickCount.toString()
 
         console.log("Tick", { intervals, drift, lag, tickCount })
-    }, interval)
+    }, interval, { type: workerUri })
 })
 
 
@@ -103,13 +122,13 @@ stopBtn.addEventListener('click', () => {
     
     startBtn.disabled = false
     stopBtn.disabled = true
-    modeSelector.disabled = false
+    workerTypeSelector.disabled = false
     intervalInput.disabled = false
 
     const averageLag = lags.length > 0 ? lags.reduce((a, b) => a + b, 0) / lags.length : 0
     const averageDrift = drifts.length > 0 ? drifts.reduce((a, b) => a + b, 0) / drifts.length : 0
 
-    console.log("Stopped", { averageLag, averageDrift, totalTicks: tickCount })
+    console.log("Stopped with", currentWorkerType, { averageLag, averageDrift, totalTicks: tickCount })
 })
 
 resetBtn.addEventListener('click', () => {
@@ -119,7 +138,7 @@ resetBtn.addEventListener('click', () => {
     
     startBtn.disabled = false
     stopBtn.disabled = true
-    modeSelector.disabled = false
+    workerTypeSelector.disabled = false
     intervalInput.disabled = false
 })
 
@@ -127,4 +146,20 @@ intervalInput.addEventListener('change', (event) => {
     const newInterval = parseInt((event.target as HTMLInputElement).value)
     interval = newInterval
     setTimeBetween(newInterval)
+})
+
+workerTypeSelector.addEventListener('change', (event) => {
+    const selectedType = (event.target as HTMLSelectElement).value
+    currentWorkerType = selectedType
+    
+    // If timer is running, restart it with new worker type
+    if (isRunning) {
+        stopTimer()
+        isRunning = false
+        
+        // Small delay to ensure clean shutdown
+        setTimeout(() => {
+            startBtn.click()
+        }, 100)
+    }
 })
