@@ -12,18 +12,41 @@ import AUDIOCONTEXT_WORKER_URI from './workers/timing.audiocontext.worker.ts?url
 import AUDIOCONTEXT_WORKLET_URI from './workers/timing.audioworklet.ts?url'
 
 import { tapTempoQuick } from './tap-tempo'
-import { Ticks } from './ticks'
-
-
-// Timing Constants and conversions
-export const SECONDS_PER_MINUTE = 60
-export const MICROSECONDS_PER_MINUTE = SECONDS_PER_MINUTE * 1_000
+import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
 
 export const MAX_BARS_ALLOWED = 32
 
-const DEFAULT_TIMER_OPTIONS = {
+interface TimerOptions {
+    bars?: number
+    divisions?: number
+    bpm?: number
+    contexts?: Record<string, unknown> | null
+    type?: string
+    processor?: string
+    callback?: ((event: TimerCallbackEvent) => void) | null
+    audioContext?: AudioContext
+}
 
+type TimingHandler = Worker | AudioWorkletNode | null
+
+interface TimerCallbackEvent {
+    bar: number
+    bars: number
+    divisionsElapsed: number
+    barsElapsed: number
+    elapsed: number
+    timePassed: number
+    expected: number
+    drift: number
+    level: number
+    intervals: number
+    lag: number
+}
+
+const DEFAULT_TIMER_OPTIONS: TimerOptions = {
+    
     bars: 16,
+    
     // keep this at 24 to match MIDI1.0 spec
     // where there are 24 ticks per quarternote (one beat)
     divisions: 24,
@@ -41,71 +64,12 @@ const DEFAULT_TIMER_OPTIONS = {
 }
 
 /**
- * Convert a BPM to a period in ms
- * @param {Number} bpm beats per minute
- * @returns {Number} time in milliseconds
- */
-export const convertBPMToPeriod = (bpm) => MICROSECONDS_PER_MINUTE / parseFloat(bpm)
-
-/**
- * Convert a period in ms to a BPM
- * @param {Number} period millisecods
- * @returns {Number} time in milliseconds
- */
-export const convertPeriodToBPM = (period) => MICROSECONDS_PER_MINUTE / parseFloat(period)
-
-/**
- * Convert a midi clock to BPM
- * @param {Number} millisecondsPerClockEvent 
- * @param {Number} pulsesPerQuarterNote  MIDI clock sends 24 pulses per quarter note (PPQN)
- * @returns Number
- */
-export const convertMIDIClockIntervalToBPM = (millisecondsPerClockEvent, pulsesPerQuarterNote = 24) => {
-
-    // Calculate the time for one quarter note in milliseconds
-    // If 1 clock event takes `millisecondsPerClockEvent` ms,
-    // then 24 clock events (1 quarter note) take `24 * millisecondsPerClockEvent` ms.
-    const millisecondsPerQuarterNote = millisecondsPerClockEvent * pulsesPerQuarterNote
-
-    // Convert milliseconds per quarter note to BPM
-    // BPM = (milliseconds in a minute) / (milliseconds per beat)
-    // 1 minute = 60,000 milliseconds
-    return convertPeriodToBPM(millisecondsPerQuarterNote)
-}
-
-/**
- * Converts seconds to ticks at a given bpm.
- * Uses internal tick resolution where 3840 ticks = 1 quarter note
- * @param seconds Time in seconds
- * @param bpm Beats per minute
- * @param resolution Optional: ticks per quarter note (default: 3840)
- * @returns Number of ticks (internal timing units)
- */
-export const secondsToTicks = (seconds: number, bpm: number, resolution: number = Ticks.Beat): number => {
-    const quarterNoteDurationSeconds = SECONDS_PER_MINUTE / bpm
-    const ticksPerSecond = resolution / quarterNoteDurationSeconds
-    return seconds * ticksPerSecond
-}
-
-/**
- * Pass in a Timer, return a formatted time
- * such as HH:MM:SS
- */
-export const formatTimeStampFromSeconds = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const remainingSeconds = (seconds % 60)
-    const milliseconds = (remainingSeconds % 1).toFixed(2).slice(2)
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(Math.floor(remainingSeconds)).padStart(2, '0')}:${String(milliseconds).padStart(2, '0')}`
-}
-
-/**
  * Simple boolean test to work out if this is a Worklet
  * or a simple Worker file (not very smart - may break in future)
- * @param file 
- * @returns 
+ * @param file
+ * @returns boolean indicating if file is a worklet
  */
-export const isFileWorklet = (file) => {
+export const isFileWorklet = (file: string): boolean => {
 
     if (file.indexOf("orklet") > -1) {
         return true
@@ -119,130 +83,133 @@ export const isFileWorklet = (file) => {
 
 export default class Timer {
 
-    startTime = -1
-    period = 100
+    startTime: number = -1
+    period: number = 100
 
     // for time formatting...
-    currentBar = 0
+    currentBar: number = 0
 
-    divisions = 24	// 24 quarter notes in a bar
-    bars = 16		// 16 bars in a measure
-    swingOffset = 0	// from 0 -> divisions
+    divisions: number = 24	// 24 quarter notes in a bar
+    bars: number = 16		// 16 bars in a measure
+    swingOffset: number = 0	// from 0 -> divisions
 
-    divisionsElapsed = 0
-    totalBarsElapsed = 0
+    divisionsElapsed: number = 0
+    totalBarsElapsed: number = 0
 
-    lastRecordedTime = 0
-    lastRecordedExternalTime = 0
+    lastRecordedTime: number = 0
+    lastRecordedExternalTime: number = 0
 
-    isRunning = false
-    isCompatible = false
-    isBypassed = false
-    isActive = false
+    isRunning: boolean = false
+    isCompatible: boolean = false
+    isBypassed: boolean = false
+    isActive: boolean = false
 
-    timingWorkHandler
+    timingWorkHandler: TimingHandler = null
+    audioContext?: AudioContext
 
-    loaded = new Promise(this.onAvailable, this.onUnavailable)
+    loaded: Promise<void>
 
-    callback
+    #options:TimerOptions
+
+    callback?: (event: TimerCallbackEvent) => void
 
     // we overwrite this with an audioContext if available
-    getNow = () => performance.timeOrigin + performance.now()
+    getNow = (): number => performance.timeOrigin + performance.now()
 
     /**
      * Can we use this timing method on this device?
-     * @returns {Boolean} is the worker available and compatable
+     * @returns boolean is the worker available and compatable
      */
-    get available() {
+    get available(): boolean {
         return this.isCompatible
     }
 
     /**
      * Can we use this timing method on this device?
-     * @returns {Boolean} is the worker available and compatable
+     * @returns boolean is the worker available and compatable
      */
-    get running() {
+    get running(): boolean {
         return this.isRunning
     }
 
     /**
      * Accurate time in milliseconds
-     * @returns {Number} The current time as of now
+     * @returns number The current time as of now
      */
-    get now() {
+    get now(): number {
         return this.getNow()
     }
 
     /**
      * Fetch current bar length in milliseconds
-     * @returns {Number} bar length in milliseconds
+     * @returns number bar length in milliseconds
      */
-    get timeBetween() {
+    get timeBetween(): number {
         return this.period
     }
 
     /**
      * Amount of time elapsed since startTimer() in seconds
-     * @returns {Number} in seconds
+     * @returns number in seconds
      */
-    get timeElapsed() {
+    get timeElapsed(): number {
         // How long has elapsed according to audio context
         return (this.now - this.startTime)// * 0.001 
     }
 
     /**
      * Fetch whole loop length in milliseconds
-     * @returns {Number} length in milliseconds
+     * @returns number length in milliseconds
      */
-    get totalTime() {
+    get totalTime(): number {
         return this.timePerBar * this.bars
     }
 
     /**
      * Fetch current bar
-     * @returns {Number} current bar
+     * @returns number current bar
      */
-    get bar() {
+    get bar(): number {
         return this.currentBar
     }
 
     /**
      * Fetch total bars completed
-     * @returns {Number} total bars
+     * @returns number total bars
      */
-    get barsElapsed() {
+    get barsElapsed(): number {
         return Math.floor(this.totalBarsElapsed / this.bars)
     }
 
-    get elapsedSinceLastTick() {
+    get elapsedSinceLastTick(): number {
         return this.now - this.lastRecordedTime
     }
 
     /**
      * Fetch total bar quantity
-     * @returns {Number} total bars
+     * @returns number total bars
      */
-    get totalBars() {
+    get totalBars(): number {
         return this.bars
     }
 
-    get totalDivisions() {
+    get totalDivisions(): number {
         return this.divisions
     }
 
     /**
      * Percentage duration of bar progress 0->1
-     * @returns {Number} percentage elapsed
+     * @returns number percentage elapsed
      */
-    get barProgress() {
+    get barProgress(): number {
         return this.currentBar / this.bars
     }
 
     /**
      * Percentage duration of beat progress 0->1
-     * @returns {Number} percentage elapsed
+     * @returns number percentage elapsed
      */
-    get beatProgress() {
+    get beatProgress(): number {
         return this.divisionsElapsed / this.totalDivisions
     }
 
@@ -251,94 +218,96 @@ export default class Timer {
 
     /**
      * Fetch current bar length in milliseconds
-     * @returns {Number} bar length in milliseconds
+     * @returns number bar length in milliseconds
      */
-    get timePerBar() {
+    get timePerBar(): number {
         return this.period * this.divisions
     }
 
     /**
      * Get the current timing as Beats per minute
      * BPM = 60,000,000 / MicroTempo
-     * @returns {Number} BPM
+     * @returns number BPM
      */
-    get BPM() {
+    get BPM(): number {
         return MICROSECONDS_PER_MINUTE / this.timePerBar
     }
-    get bpm() {
+    get bpm(): number {
         return this.BPM
     }
 
     /**
      * Get the duration of one beat (quarternote) 
      * in microseconds
-     * @returns {Number} Microtempo
+     * @returns number Microtempo
      */
-    get quarterNoteDuration() {
+    get quarterNoteDuration(): number {
         return MICROSECONDS_PER_MINUTE / this.bpm
     }
 
     /**
      * Get the duration of one beat (quarternote) 
      * in seconds
+     * @returns number duration in seconds
      */
-    get quarterNoteDurationInSeconds() {
+    get quarterNoteDurationInSeconds(): number {
         return SECONDS_PER_MINUTE / this.bpm
     }
 
     /**
      * Get the current timing as a Microtempo 
-     * @returns {Number} Microtempo
+     * @returns number Microtempo
      */
-    get microTempo() {
+    get microTempo(): number {
         return this.timePerBar * 0.001
     }
 
     /**
      * Get the current timing in Micros per MIDI clock
      * MicrosPerMIDIClock = MicroTempo / 24 (MIDI 1.0 has 24 divisions)
-     * @returns {Number} Microtempo
+     * @returns number Micros per MIDI clock
      */
-    get microsPerMIDIClock() {
+    get microsPerMIDIClock(): number {
         return this.microTempo / this.divisions
     }
 
     /**
      * How many Ticks are there every second?
+     * @returns number ticks per second
      */
-    get ticksPerSecond() {
+    get ticksPerSecond(): number {
         return Ticks.Beat / this.quarterNoteDurationInSeconds
     }
 
-    get swing() {
+    get swing(): number {
         return this.swingOffset / this.divisions
     }
 
 
     // Positions & booleans
 
-    get isAtStartOfBar() {
+    get isAtStartOfBar(): boolean {
         return this.barProgress === 0
     }
-    get isStartBar() {
+    get isStartBar(): boolean {
         return this.currentBar === 0
     }
-    get isAtStart() {
+    get isAtStart(): boolean {
         return this.divisionsElapsed === 0
     }
-    get isAtMiddleOfBar() {
+    get isAtMiddleOfBar(): boolean {
         return this.barProgress === 0.5
     }
-    get isQuarterNote() {
+    get isQuarterNote(): boolean {
         return this.beatProgress % 0.25 === 0
     }
-    get isHalfNote() {
+    get isHalfNote(): boolean {
         return this.beatProgress % 0.5 === 0
     }
-    get isSwungBeat() {
+    get isSwungBeat(): boolean {
         return this.divisionsElapsed % this.swingOffset === 0
     }
-    get isUsingExternalTrigger() {
+    get isUsingExternalTrigger(): boolean {
         return this.isBypassed
     }
 
@@ -346,18 +315,17 @@ export default class Timer {
 
     /**
      * Fetch current bar
-     * @returns {Number} current bar
+     * @param value bar number
      */
-    set bar(value) {
-        this.currentBar = parseInt(value)
+    set bar(value: number | string) {
+        this.currentBar = parseInt(String(value))
     }
 
     /**
      * Allows a user to set the total number of bars
-     * @param {Number} value How many bars to have in a measure
-     * @returns {Number} total bars
+     * @param value How many bars to have in a measure
      */
-    set totalBars(value) {
+    set totalBars(value: number) {
         this.bars = value < 1 ? 1 : value > MAX_BARS_ALLOWED ? MAX_BARS_ALLOWED : value
     }
 
@@ -365,25 +333,23 @@ export default class Timer {
      * Set the current timing using a BPM where 
      * one beat in milliseconds =  60,000 / BPM
      * 
-     * @param {Number} bpm Beats per minute
-     * @returns {Number} period
+     * @param value Beats per minute
      */
-    set BPM(value) {
-        this.timeBetween = 60000 / Math.max(10, parseFloat(value))
+    set BPM(value: number | string) {
+        this.timeBetween = 60000 / Math.max(10, parseFloat(String(value)))
     }
-    set bpm(value) {
+    set bpm(value: number | string) {
         this.BPM = value
     }
-    set tempo(value) {
+    set tempo(value: number | string) {
         this.BPM = value
     }
 
     /**
      * Using a time in milliseconds, set the amount of time between tick and tock
-     * @param {Number} time Amount of millieconds between ticks
-     * @returns {Number} period
+     * @param time Amount of millieconds between ticks
      */
-    set timeBetween(time) {
+    set timeBetween(time: number) {
 
         const interval = time / this.divisions
         // we want 16 notes
@@ -404,52 +370,62 @@ export default class Timer {
      * Passed in the onBeat callback as a variant
      * to determine when the "beat" should occur
      */
-    set swing(value) {
+    set swing(value: number) {
         this.swingOffset = value * this.divisions
     }
 
-    constructor(options = DEFAULT_TIMER_OPTIONS) {
-        options = { ...DEFAULT_TIMER_OPTIONS, ...options }
+    constructor(options: TimerOptions = DEFAULT_TIMER_OPTIONS) {
+        this.loaded = Promise.resolve()
+        
+        options = { ...DEFAULT_TIMER_OPTIONS, ...options }        
+        this.#options = options
+
         const optionKeys = Object.keys(options)
         // const { contexts, type=AUDIOTIMER_WORKLET_URI, divisions=DIVISIONS, processor=AUDIOTIMER_PROCESSOR_URI} = options
 
         for (let key of optionKeys) {
             switch (key) {
                 case "audioContext":
-                    this.audioContext = options.audioContext
-                    this.getNow = () => this.audioContext.currentTime * 1000
+                    this.audioContext = options.audioContext as AudioContext
+                    this.getNow = (): number => (this.audioContext!.currentTime * 1000)
 
                     break
 
                 case "contexts":
-                    for (let context in options.contexts) {
-                        this[context] = options.contexts[context]
+                    if (options.contexts) {
+                        for (let context in options.contexts) {
+                            (this as Record<string, unknown>)[context] = options.contexts[context]
+                        }
                     }
-                    this.getNow = () => this.audioContext ? this.audioContext.currentTime * 1000 : performance.now()
+                    this.getNow = (): number => this.audioContext ? this.audioContext.currentTime * 1000 : performance.now()
                     break
 
                 default:
-                    this[key] = options[key]
-                    console.warn("Timer option", key, options[key])
+                    (this as Record<string, unknown>)[key] = (options as Record<string, unknown>)[key]
+                    console.warn("Timer option", key, (options as Record<string, unknown>)[key])
             }
         }
 
         // 
-        const isWorklet = isFileWorklet(options.type)
+        const isWorklet = isFileWorklet(options.type || '')
         console.info("Timer:", options.type, this.timingWorkHandler, { isWorklet, options })
 
         if (isWorklet) {
-            this.loaded = this.setTimingWorklet(options.type, options.processor, this.audioContext)
+            this.loaded = this.setTimingWorklet(
+                options.type || '',
+                options.processor || '',
+                this.audioContext
+            ) as any
         } else {
-            this.loaded = this.setTimingWorker(options.type)
+            this.loaded = this.setTimingWorker(options.type || '') as any
         }
     }
 
     /**
      * Set the function that gets called on every divixional tick
-     * @param {Function} callback Method to call when the timer ticks
+     * @param callback Method to call when the timer ticks
      */
-    setCallback(callback) {
+    setCallback(callback: (event: TimerCallbackEvent) => void): void {
         this.callback = callback
     }
 
@@ -457,12 +433,12 @@ export default class Timer {
      * Allows us to disable the existing route to send our own
      * or to inject them into here 
      * 
-     * @param {Boolean} useExternalClock 
-     * @returns 
+     * @param useExternalClock whether to use external clock
+     * @returns trigger function
      */
-    bypass(useExternalClock = true) {
+    bypass(useExternalClock: boolean = true): () => void {
 
-        const trigger = () => {
+        const trigger = (): void => {
             // call callback
             this.externalTrigger()
         }
@@ -510,14 +486,14 @@ export default class Timer {
 
     /**
      * Convert time to ticks using the current tick per second rate
-     * @param time 
-     * @returns 
+     * @param time in seconds
+     * @returns number of ticks
      */
-    convertToTicks(time) {
+    convertToTicks(time: number): number {
         return time / this.ticksPerSecond
     }
 
-    createTick(intervals, timePased) {
+    createTick(intervals: number, timePased: number): void {
         const timeBetweenPeriod = this.timeBetween * 0.001
         // Expected time stamp
         const expected = intervals * timeBetweenPeriod
@@ -539,11 +515,12 @@ export default class Timer {
 
     /**
      * Set the worklet as the main timing mechanism
-     * @param {String} type 
-     * @param {String} processor 
-     * @param {AudioContext} audioContext 
+     * @param type URL or identifier
+     * @param processor processor name
+     * @param audioContext audio context
+     * @returns the worklet node
      */
-    async setTimingWorklet(type, processor, audioContext) {
+    async setTimingWorklet(type: string, processor: string, audioContext?: AudioContext): Promise<TimingHandler> {
 
         let wasRunning = this.isRunning
 
@@ -552,11 +529,12 @@ export default class Timer {
             await this.unsetTimingWorker()
         }
 
-        const imports = await import('./workers/timing.audioworklet.ts')
+        const imports = await import(type)
+        // const imports = await import('./workers/timing.audioworklet.ts')
         const Worklet = imports.default
         const { createTimingProcessor } = imports
 
-        this.timingWorkHandler = await createTimingProcessor(audioContext)
+        this.timingWorkHandler = await createTimingProcessor(audioContext as AudioContext)
         // this.timingWorkHandler = new Worklet( audioContext )
 
         // console.error(type, "timer.audioworklet", {module, audioContext}, this.timingWorker ) 
@@ -570,10 +548,10 @@ export default class Timer {
 
     /**
      * Load in the Worker URI
-     * @param {String} type or URi 
-     * @returns 
+     * @param type URL or identifier
+     * @returns the worker instance
      */
-    async loadTimingWorker(type) {
+    async loadTimingWorker(type: string): Promise<Worker> {
         if (typeof Worker === 'undefined') {
             throw new Error('Worker is not available in this environment')
         }
@@ -596,10 +574,10 @@ export default class Timer {
      * and at that point, we can finally tie in the actual timing by using the 
      * context as the global clock!
      * NB. We NOW CAN! User the setTimingWorklet instead :)
-     * @param {String} type 
-     * @returns 
+     * @param type URL or identifier
+     * @returns the worker instance or null if failed
      */
-    async setTimingWorker(type) {
+    async setTimingWorker(type: string): Promise<Worker | null> {
         try {
 
             let wasRunning = this.isRunning
@@ -612,7 +590,7 @@ export default class Timer {
             this.timingWorkHandler = await this.loadTimingWorker(type)
 
             if (!this.timingWorkHandler) {
-                throw Error("Timing Worker failed to load url:" + url + " type:" + type)
+                throw Error("Timing Worker failed to load url: type:" + type)
             }
 
 
@@ -635,14 +613,19 @@ export default class Timer {
 
     /**
      * Unregister any Worker set
-     * @returns {Boolean}
+     * @returns boolean success
      */
-    async unsetTimingWorker() {
+    async unsetTimingWorker(): Promise<boolean> {
         // TODO: clone the methods into new worker
-        this.stopTimer()
-        this.timingWorkHandler.terminate()
-        this.timingWorkHandler.onmessage = (e) => { }
-        this.timingWorkHandler.onerror = (e) => { }
+        await this.stopTimer()
+        const handler = this.timingWorkHandler
+        if (handler) {
+            if ('terminate' in handler) {
+                (handler as Worker).terminate()
+            }
+            (handler as any).onmessage = null;
+            (handler as any).onerror = null
+        }
         this.timingWorkHandler = null
         return true
     }
@@ -652,16 +635,16 @@ export default class Timer {
     /**
      * Add a worker or worklet into the pipeline
      * and monitor it's events and messages
-     * @param {Worker} worker 
+     * @param worker the worker instance
      */
-    connectWorker(worker) {
+    connectWorker(worker: TimingHandler): void {
 
         if (!worker) {
             throw new Error("Timing Worker was not defined - please check paths " + worker)
         }
 
         // now hook into our worker bee and watch for timing changes
-        worker.onmessage = (e) => {
+        (worker as any).onmessage = (e: MessageEvent<any>) => {
 
             const time = this.now
             const data = e.data
@@ -707,24 +690,29 @@ export default class Timer {
         }
 
         // Worker Loading Error!
-        worker.onerror = error => {
-            const payload = { error: error.message, time: this.now }
-            console.error("Timer:Worker error", error, payload)
-            worker.postMessage(payload)
+        (worker as any).onerror = (event: ErrorEvent) => {
+            const payload = { error: event.message || 'Unknown error', time: this.now }
+            console.error("Timer:Worker error", event, payload)
+            if (worker) {
+                (worker as any).postMessage(payload)
+            }
         }
     }
 
-    postMessage(payload) {
-        this.timingWorkHandler && this.timingWorkHandler.postMessage(payload)
+    postMessage(payload: Record<string, unknown>): void {
+        this.timingWorkHandler && (this.timingWorkHandler as any).postMessage(payload)
     }
 
     /**
      * Disconnect the worker from the timer
-     * @param {Worker} worker 
+     * @param worker the worker to disconnect
+     * @param setStopped whether to set isRunning to false
      */
-    disconnectWorker(worker, setStopped = true) {
-        worker.onmessage = (e) => {
-            switch (e.event) {
+    disconnectWorker(worker: TimingHandler, setStopped: boolean = true): void {
+        if (!worker) return
+        (worker as any).onmessage = (e: MessageEvent<any>) => {
+            const data = e.data as Record<string, unknown>
+            switch (data.event) {
                 // Clean up
                 case EVENT_STOPPING:
                     // destroy contexts and unsubscribe from events
@@ -735,7 +723,7 @@ export default class Timer {
             }
         }
 
-        worker.postMessage({
+        (worker as any).postMessage({
             command: CMD_STOP,
             time: this.now
         })
@@ -746,28 +734,33 @@ export default class Timer {
     /**
      * Reset the timer and start from the beginning
      */
-    resetTimer() {
+    resetTimer(): void {
         this.currentBar = 0
         this.totalBarsElapsed = 0
         this.divisionsElapsed = 0
     }
 
-    start() {
-        this.startTimer(this.callback)
+    async start(): Promise<{ time: number; interval: number; worker: TimingHandler }> {
+        return this.startTimer(this.callback)
     }
-    stop() {
-        this.stopTimer()
+    async stop(): Promise<{ currentTime: number; worker: TimingHandler }> {
+        return this.stopTimer()
     }
-    toggle() {
-        this.toggleTimer(this.callback)
+    async toggle(): Promise<boolean> {
+        return this.toggleTimer(this.callback)
     }
 
     /**
      * Starts the timer and begins events being dispatched
      * 
-     * @returns {Object} current time and timingWorker
+     * @param callback optional callback to call on each tick
+     * @param options optional options
+     * @returns object with current time and worker/worklet
      */
-    async startTimer(callback, options = {}) {
+    async startTimer(
+        callback?: (event: TimerCallbackEvent) => void,
+        options: Record<string, unknown> = {}
+    ): Promise<{ time: number; interval: number; worker: TimingHandler }> {
 
         await this.loaded
 
@@ -816,9 +809,9 @@ export default class Timer {
 
     /**
      * Stops the timer and prevents events being dispatched
-     * @returns {Object} current time and timingWorker
+     * @returns object with current time and worker/worklet
      */
-    async stopTimer() {
+    async stopTimer(): Promise<{ currentTime: number; worker: TimingHandler }> {
 
         await this.loaded
 
@@ -837,11 +830,14 @@ export default class Timer {
      * Start the timer if it is paused...
      * or stop the timer if it is running
      * 
-     * @param callback 
-     * @param options 
-     * @returns {Boolean} is the timer running
+     * @param callback optional callback to call on each tick
+     * @param options optional options
+     * @returns boolean indicating if timer is running
      */
-    async toggleTimer(callback, options = {}) {
+    async toggleTimer(
+        callback?: (event: TimerCallbackEvent) => void,
+        options: Record<string, unknown> = {}
+    ): Promise<boolean> {
         if (this.isBypassed) {
             // we are using an external timer!
             return this.isRunning
@@ -857,20 +853,23 @@ export default class Timer {
     /**
      * Tap a tempo into the system
      * requires 3 taps to set the tempo
+     * @returns the detected tempo in BPM, or -1 if not enough taps
      */
-    tapTempo() {
+    tapTempo(): number {
         const tempo = tapTempoQuick()
         if (tempo > -1) {
             this.BPM = tempo
             return tempo
         }
+        return -1
     }
 
     /**
      * Use an external device to send clock signals to and through this timer
      * such as the MIDI clock signal
+     * @param advance whether to advance the divisions counter
      */
-    externalTrigger(advance = true) {
+    externalTrigger(advance: boolean = true): void {
         // How long has elapsed according to our clock
         const timestamp = this.now
         this.lastRecordedExternalTime = timestamp
@@ -903,8 +902,7 @@ export default class Timer {
     /**
      * Repeat previous clock tick but do not advance
      */
-    retrigger() {
-        console.info("retrigger:Timer", this)
+    retrigger(): void {
         this.externalTrigger(false)
         // this.createTick( data.intervals, data.time )			
     }
@@ -914,28 +912,35 @@ export default class Timer {
     /**
      * EVENT: Timer is available
      */
-    onAvailable() {
+    onAvailable = (): void => {
         // console.info("Timer is available")
     }
 
     /**
      * EVENT: Timer is unavailable
      */
-    onUnavailable() {
+    onUnavailable = (): void => {
         // console.error("Timer is unavailable")
     }
 
     /**
      * Occurs 24 times per beat
      * Call the callback with internal flags
-     * @param {Number} timePassed 
-     * @param {Number} expected 
-     * @param {Number} drift 
-     * @param {Number} level 
-     * @param {Number} intervals 
-     * @param {Number} lag 
+     * @param timePassed time passed since start
+     * @param expected expected time
+     * @param drift timing drift
+     * @param level timing level
+     * @param intervals number of intervals
+     * @param lag timing lag
      */
-    onTick(timePassed, expected, drift = 0, level = 0, intervals = 0, lag = 0) {
+    onTick(
+        timePassed: number,
+        expected: number,
+        drift: number = 0,
+        level: number = 0,
+        intervals: number = 0,
+        lag: number = 0
+    ): void {
 
         //console.info("Timer:onTick", {timePassed, expected, drift, level, intervals, lag} )
         this.lastRecordedTime = timePassed
@@ -951,12 +956,18 @@ export default class Timer {
         const swung = this.divisionsElapsed % this.swingOffset === 0
 
         this.callback && this.callback({
-            bar: this.currentBar, bars: this.totalBars,
+            bar: this.currentBar,
+            bars: this.totalBars,
             divisionsElapsed: this.divisionsElapsed,
             barsElapsed: this.barsElapsed,
             elapsed: this.timeElapsed,
             //performance
-            timePassed, expected, drift, level, intervals, lag
+            timePassed,
+            expected,
+            drift,
+            level,
+            intervals,
+            lag
         })
     }
 }
