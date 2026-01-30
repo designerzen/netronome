@@ -1,10 +1,14 @@
 // Netronome - Timing Experiments
 import { startTimer, stopTimer, setTimeBetween, createTimer } from './src/timer-global'
 
-import AUDIOCONTEXT_WORKER_URI from './src/workers/timing.audiocontext.worker.ts?url'
-import ROLLING_WORKER_URI from './src/workers/timing.rolling.worker.ts?url'
-import SETINTERVAL_WORKER_URI from './src/workers/timing.setinterval.worker.ts?url'
-import SETTIMEOUT_WORKER_URI from './src/workers/timing.settimeout.worker.ts?url'
+import {
+    AUDIOCONTEXT_WORKER_URI,
+    AUDIOCONTEXT_WORKLET_URI,
+    AUDIOWORKLET_PROCESSOR_URI,
+    ROLLING_WORKER_URI,
+    SETINTERVAL_WORKER_URI,
+    SETTIMEOUT_WORKER_URI
+} from './src/timer-worker-types'
 
 interface TimerEvent {
     timePassed: number
@@ -19,6 +23,8 @@ interface TimerEvent {
 // Worker URIs mapping
 const WORKER_TYPES: Record<string, string> = {
     audiocontext: AUDIOCONTEXT_WORKER_URI,
+    audioworklet: AUDIOCONTEXT_WORKLET_URI,
+    audioworklet_processor: AUDIOWORKLET_PROCESSOR_URI,
     rolling: ROLLING_WORKER_URI,
     setinterval: SETINTERVAL_WORKER_URI,
     settimeout: SETTIMEOUT_WORKER_URI
