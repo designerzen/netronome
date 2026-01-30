@@ -5,6 +5,16 @@ declare module "*?url" {
   export default content;
 }
 
+declare module "*?worker" {
+  const workerConstructor: WorkerWrapper;
+  export default workerConstructor;
+}
+
+// Worker constructor type from ?worker imports
+export type WorkerWrapper = {
+  new(): Worker;
+}
+
 // AudioWorklet globals
 declare function registerProcessor(name: string, processorConstructor: typeof AudioWorkletProcessor): void;
 

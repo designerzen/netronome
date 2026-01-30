@@ -12,6 +12,7 @@ import { AUDIOCONTEXT_WORKER_URI, AUDIOCONTEXT_WORKLET_URI } from './timer-worke
 
 import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
+import { WorkerWrapper } from './vite-env'
 
 export const MAX_BARS_ALLOWED = 32
 
@@ -70,6 +71,9 @@ const DEFAULT_TIMER_OPTIONS: TimerOptions = {
  */
 export const isFileWorklet = (file: string): boolean => {
 
+    if (typeof file === "function") {
+        return false
+    }
     if (file.indexOf("orklet") > -1) {
         return true
     }
@@ -542,8 +546,8 @@ export default class Timer {
             await this.unsetTimingWorker()
         }
 
-        const imports = await import(type)
-        // const imports = await import('./workers/timing.audioworklet.ts')
+        // const imports = await import(type)
+        const imports = await import('./workers/timing.audioworklet.ts')
         const Worklet = imports.default
         const { createTimingProcessor } = imports
 
@@ -564,20 +568,25 @@ export default class Timer {
      * @param type URL or identifier
      * @returns the worker instance
      */
-    async loadTimingWorker(type: string): Promise<Worker> {
+    async loadTimingWorker(type: string|WorkerWrapper): Promise<Worker> {
         if (typeof Worker === 'undefined') {
             throw new Error('Worker is not available in this environment')
         }
         
-        if (typeof type !== 'string') {
-            throw new Error(`Invalid worker URL: expected string, got ${typeof type}`)
-        }
-        
         try {
-            const worker = new Worker(type, { type: 'module' })
-            return worker
+            // Handle Worker constructor (from ?worker imports)
+            if (typeof type === 'function') {
+                return new type()
+            }
+            // Handle URL strings
+            else if (typeof type === 'string') {
+                return new Worker(type, { type: 'module' })
+            }
+            else {
+                throw new Error(`Invalid worker type: expected function or string, got ${typeof type}`)
+            }
         } catch (error) {
-            console.error('Failed to create worker from URL:', type, error)
+            console.error('Failed to create worker:', type, error)
             throw error
         }
     }
