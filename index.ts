@@ -1,10 +1,10 @@
 // Netronome - Timing Experiments
-import { startTimer, stopTimer, setTimeBetween, createTimer } from './timer-global'
+import { startTimer, stopTimer, setTimeBetween, createTimer } from './src/timer-global'
 
-import AUDIOCONTEXT_WORKER_URI from './workers/timing.audiocontext.worker.ts?url'
-import ROLLING_WORKER_URI from './workers/timing.rolling.worker.ts?url'
-import SETINTERVAL_WORKER_URI from './workers/timing.setinterval.worker.ts?url'
-import SETTIMEOUT_WORKER_URI from './workers/timing.settimeout.worker.ts?url'
+import AUDIOCONTEXT_WORKER_URI from './src/workers/timing.audiocontext.worker.ts?url'
+import ROLLING_WORKER_URI from './src/workers/timing.rolling.worker.ts?url'
+import SETINTERVAL_WORKER_URI from './src/workers/timing.setinterval.worker.ts?url'
+import SETTIMEOUT_WORKER_URI from './src/workers/timing.settimeout.worker.ts?url'
 
 interface TimerEvent {
     timePassed: number
@@ -31,6 +31,8 @@ const stopBtn = document.getElementById('stop') as HTMLButtonElement
 const resetBtn = document.getElementById('reset') as HTMLButtonElement
 const workerTypeSelector = document.getElementById('worker-type') as HTMLSelectElement
 const intervalInput = document.getElementById('interval') as HTMLInputElement
+const bpmSlider = document.getElementById('bpm') as HTMLInputElement
+const bpmValue = document.getElementById('bpm-value')!
 
 // Stats Elements
 const statIntervals = document.getElementById('stat-intervals')!
@@ -40,6 +42,7 @@ const statTicks = document.getElementById('stat-ticks')!
 
 // State
 let interval = 1000
+let bpm = 120
 let lags: number[] = []
 let drifts: number[] = []
 let tickCount = 0
@@ -161,5 +164,22 @@ workerTypeSelector.addEventListener('change', (event) => {
         setTimeout(() => {
             startBtn.click()
         }, 100)
+    }
+})
+
+bpmSlider.addEventListener('input', (event) => {
+    const newBpm = parseInt((event.target as HTMLInputElement).value)
+    bpm = newBpm
+    bpmValue.textContent = newBpm.toString()
+    
+    // Convert BPM to interval in milliseconds
+    // interval (ms) = 60,000 / BPM
+    const newInterval = 60000 / newBpm
+    intervalInput.value = newInterval.toString()
+    interval = newInterval
+    
+    // Update the timer if it's running
+    if (isRunning) {
+        setTimeBetween(newInterval)
     }
 })

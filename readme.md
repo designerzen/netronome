@@ -130,15 +130,28 @@ Options:
 - **running**: `boolean` - Whether timer is currently running
 - **available**: `boolean` - Whether timing backend is available
 - **bpm**: `number` - Get/set beats per minute
+- **BPM**: `number` - Get/set beats per minute (uppercase variant)
 - **bar**: `number` - Current bar (0 to bars-1)
 - **barsElapsed**: `number` - Total bars completed
 - **divisionsElapsed**: `number` - Ticks elapsed in current bar (0 to divisions-1)
-- **now**: `number` - Current timestamp in milliseconds
+- **now**: `number` - Current timestamp using high-resolution timer
 - **timeElapsed**: `number` - Time elapsed since timer started
-- **totalTime**: `number` - Total loop duration in milliseconds
+- **timeBetween**: `number` - Time between divisions in milliseconds
+- **timePerBar**: `number` - Duration of one bar in milliseconds
+- **totalTime**: `number` - Total loop duration in milliseconds (all bars)
+- **totalBars**: `number` - Total number of bars
+- **totalDivisions**: `number` - Total divisions per bar
 - **barProgress**: `number` - Current bar progress 0-1
-- **beatProgress**: `number` - Current beat progress 0-1
+- **beatProgress**: `number` - Current beat/division progress 0-1
 - **quarterNoteDuration**: `number` - Duration of one beat in microseconds
+- **quarterNoteDurationInSeconds**: `number` - Duration of one beat in seconds
+- **microTempo**: `number` - Tempo in microseconds per bar
+- **microsPerMIDIClock**: `number` - Microseconds per MIDI clock event
+- **ticksPerSecond**: `number` - Number of ticks per second
+- **elapsedSinceLastTick**: `number` - Time elapsed since last tick event
+- **isBypassed**: `boolean` - Whether using external clock (bypass internal timing)
+- **isActive**: `boolean` - Whether timer is active
+- **swing**: `number` - Swing offset as fraction of divisions (0-1)
 
 #### Methods
 
@@ -179,6 +192,45 @@ Returns: `number` - Detected BPM, or -1 if insufficient data
 Handle external clock signals (e.g., MIDI clock). Call this on each external clock event.
 
 - **advance**: `boolean` - Whether to increment the divisions counter (default: true)
+
+##### `retrigger()`
+
+Repeat the previous clock tick without advancing the divisions counter.
+
+##### `useExternalClock(enabled?)`
+
+Enable or disable external clock mode (bypass internal timing).
+
+- **enabled**: `boolean` - Whether to use external clock (default: true)
+
+##### `setBPM(value)`
+
+Set the timer tempo in beats per minute.
+
+- **value**: `number | string` - Beats per minute
+
+##### `setTimeBetween(time)`
+
+Set the time between each division in milliseconds.
+
+- **time**: `number` - Milliseconds between ticks
+
+##### `setSwing(value)`
+
+Set swing offset as a fraction of divisions.
+
+- **value**: `number` - Swing value 0-1
+
+### Position & State Getters
+
+- **isAtStartOfBar**: `boolean` - True if at bar progress 0
+- **isStartBar**: `boolean` - True if at bar 0
+- **isAtStart**: `boolean` - True if at division 0
+- **isAtMiddleOfBar**: `boolean` - True if at bar progress 0.5
+- **isQuarterNote**: `boolean` - True if at quarter note boundary
+- **isHalfNote**: `boolean` - True if at half note boundary
+- **isSwungBeat**: `boolean` - True if current division is a swung beat
+- **isUsingExternalTrigger**: `boolean` - True if external clock is active
 
 ### Timer Callback Event
 
