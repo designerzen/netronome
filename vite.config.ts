@@ -8,7 +8,14 @@ export default defineConfig({
   build: {
     target: 'es2020',
     minify: 'terser',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]'
+      }
+    }
   },
   server: {
     port: 3000,

@@ -575,7 +575,12 @@ export default class Timer {
         }
         
         try {
-            const worker = new Worker(type, { type: 'module' })
+            // Handle relative URLs by making them absolute with the base path
+            let workerUrl = type
+            if (!workerUrl.startsWith('http') && !workerUrl.startsWith('data:')) {
+                workerUrl = new URL(type, import.meta.url).href
+            }
+            const worker = new Worker(workerUrl, { type: 'module' })
             return worker
         } catch (error) {
             console.error('Failed to create worker from URL:', type, error)
