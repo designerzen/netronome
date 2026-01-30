@@ -4,14 +4,14 @@ A high-precision timing and tempo library for JavaScript, designed to achieve ne
 
 ## Overview
 
-Netronome is a comprehensive timing system that prioritizes accuracy in JavaScript environments. It mitigates browser timing limitations (like Spectre/Meltdown mitigations that round timer values) by offering multiple timing backends with varying precision characteristics. The library is particularly useful for music production, metronomes, sequencers, and any application requiring precise temporal control.
+Netronome is a comprehensive timing system that prioritizes accuracy in JavaScript environments. It mitigates browser timing limitations (like [Spectre/Meltdown mitigations](https://developer.mozilla.org/en-US/docs/Glossary/spectre) that round timer values) by offering multiple timing backends with varying precision characteristics. The library is particularly useful for music production, metronomes, sequencers, and any application requiring precise temporal control.
 
 ### Key Features
 
-- **Multiple timing backends**: AudioContext Worker, Web Workers (setInterval/setTimeout), and rolling timers
+- **Multiple timing backends**: [AudioContext](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext) Worker, [Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) (setInterval/setTimeout), and rolling timers
 - **High-precision timing**: Works around browser timing resolution limitations
-- **Tap tempo detection**: Automatic BPM detection from user input with linear regression
-- **MIDI clock support**: External clock synchronization (24 pulses per quarter note)
+- **Tap tempo detection**: Automatic BPM detection from user input with [linear regression](https://www.nayuki.io/page/tap-to-measure-tempo-javascript)
+- **MIDI clock support**: External clock synchronization ([24 pulses per quarter note](https://en.wikipedia.org/wiki/MIDI_clock))
 - **Instance-based timers**: Run multiple independent timers at different rates simultaneously
 - **Beat and bar synchronization**: Full support for bars, divisions (24 per beat, MIDI-compliant), and musical time calculations
 - **Comprehensive timing metrics**: Track drift, lag, and expected vs. actual timing
@@ -218,13 +218,13 @@ Standard browser timer APIs (lower precision due to browser rounding).
 
 ## Timing Accuracy
 
-Modern browsers limit timer precision to mitigate Spectre/Meltdown attacks:
+Modern browsers limit timer precision to mitigate [Spectre/Meltdown attacks](https://developer.mozilla.org/en-US/docs/Glossary/spectre):
 - **Firefox**: 1ms granularity
 - **Chrome**: 100μs with jitter
 - **Safari**: Variable, context-dependent
 
 Netronome works around these limitations by:
-1. Using AudioContext timestamps (when available) for sub-millisecond precision
+1. Using [AudioContext timestamps](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/currentTime) (when available) for sub-millisecond precision
 2. Tracking and reporting drift and lag metrics
 3. Providing multiple backend options for different use cases
 4. Averaging timing measurements across samples
@@ -372,7 +372,7 @@ npm run test:coverage
 - **Safari**: 13+
 - **iOS Safari**: 13+
 
-AudioWorklet support available in Chrome/Edge 66+, Firefox 76+, Safari 14.1+.
+[AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/AudioWorklet) support available in Chrome/Edge 66+, Firefox 76+, Safari 14.1+.
 
 ## License
 
@@ -380,13 +380,17 @@ MIT
 
 ## Notes
 
-- **MIDI Compatibility**: Division count defaults to 24 to match MIDI 1.0 spec (24 ticks per quarter note)
-- **WebAssembly Future**: Potential for WebAssembly backend for even greater precision
-- **Audio Context Limitations**: iOS requires AudioContext creation within user-triggered events; the timer will auto-resume suspended contexts
+- **MIDI Compatibility**: Division count defaults to 24 to match [MIDI 1.0 spec](https://en.wikipedia.org/wiki/MIDI_clock) (24 ticks per quarter note)
+- **WebAssembly Future**: Potential for [WebAssembly](https://developer.mozilla.org/en-US/docs/WebAssembly) backend for even greater precision
+- **Audio Context Limitations**: iOS requires [AudioContext](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext) creation within user-triggered events; the timer will auto-resume suspended contexts
 - **Maximum Bars**: Timer supports a maximum of 32 bars per loop (MAX_BARS_ALLOWED)
 
 ## References
 
-- MIDI 1.0 Specification (24 PPQN)
-- Web Audio API Specification
-- Tap tempo detection based on linear regression techniques
+- [MIDI 1.0 Specification](https://en.wikipedia.org/wiki/MIDI) - Overview and clock specification
+- [Web Audio API Specification](https://www.w3.org/TR/webaudio/) - W3C Web Audio API standard
+- [Tap Tempo Detection with Linear Regression](https://www.nayuki.io/page/tap-to-measure-tempo-javascript) - Nayuki's detailed implementation guide
+- [Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) - MDN Web Workers documentation
+- [AudioContext](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext) - MDN AudioContext documentation
+- [AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/AudioWorklet) - MDN AudioWorklet documentation
+- [Performance API](https://developer.mozilla.org/en-US/docs/Web/API/Performance) - High-resolution time measurement
