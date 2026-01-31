@@ -1,5 +1,5 @@
 import {
-	CMD_START,CMD_STOP,CMD_UPDATE,
+	CMD_START,CMD_STOP,CMD_UPDATE,CMD_ADJUST_DRIFT,
 	EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 } from '../timer-event-types'
 
@@ -7,6 +7,7 @@ interface WorkerMessage {
 	command: string
 	interval?: number
 	accurateTiming?: boolean
+	drift?: number
 }
 
 const GAP_BETWEEN_LOOPS = 0
@@ -20,6 +21,7 @@ let intervals: number = 0
 let timerID: ReturnType<typeof setTimeout> | -1 = -1
 let exit: boolean = false
 let accurateTiming: boolean = true
+let cumulativeDrift: number = 0
 
 const now = (): number => performance.now() || Date.now()
 
@@ -44,12 +46,17 @@ const loop = (): void => {
 
     currentTime = now()
   
+    // Apply drift compensation when checking interval
+    // Positive drift = running slow, decrease gap (speed up)
+    // Negative drift = running fast, increase gap (slow down)
+    const compensatedGap = Math.max(gap + cumulativeDrift, 1)
+    
     // if the currentTime is equal or greater to our rolling time + interval
     if (currentTime >= nextInterval)
     {
         // update our counter
         intervals++
-		nextInterval += gap
+		nextInterval += compensatedGap
         // callback
         self.postMessage({ event:EVENT_TICK, time:elapsed(), intervals })
     }
@@ -107,6 +114,13 @@ self.onmessage = (e: MessageEvent<WorkerMessage>): void => {
 
         case CMD_UPDATE:
             start(data.interval || 250)
+            break
+
+        case CMD_ADJUST_DRIFT:
+            if (data.drift !== undefined) {
+                cumulativeDrift = data.drift
+                // Adjust next interval on next iteration
+            }
             break
     }
 }

@@ -8,8 +8,10 @@ import AUDIOTIMER_PROCESSOR_URI from './timing.audioworklet-processor?url'
 export const createTimingProcessor = async (context: AudioContext): Promise<TimingAudioWorkletNode> =>{
 	try{
 		await context.audioWorklet.addModule(AUDIOTIMER_PROCESSOR_URI)
+		console.info("AudioWorklet processor loaded successfully from:", AUDIOTIMER_PROCESSOR_URI)
 	}catch(error){
-		console.error("AudioWorklet processor cannot be added", error)
+		console.error("AudioWorklet processor failed to load from:", AUDIOTIMER_PROCESSOR_URI, error)
+		throw new Error(`Failed to load AudioWorklet processor: ${error instanceof Error ? error.message : String(error)}`)
 	}
 	const worker = new TimingAudioWorkletNode(context)
 

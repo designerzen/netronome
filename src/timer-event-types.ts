@@ -2,6 +2,7 @@ export const CMD_INITIALISE = "init"
 export const CMD_START = "start"
 export const CMD_STOP  = "stop"
 export const CMD_UPDATE  = "update"
+export const CMD_ADJUST_DRIFT = "adjust-drift"
 
 export const EVENT_READY = "ready"
 export const EVENT_STARTING = "starting"

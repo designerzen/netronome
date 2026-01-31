@@ -3,7 +3,7 @@
 // 	EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 // } from './timing.js'
 import {
-	CMD_START,CMD_STOP,CMD_UPDATE,
+	CMD_START,CMD_STOP,CMD_UPDATE,CMD_ADJUST_DRIFT,
 	EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 } from '../timer-event-types'
 
@@ -11,6 +11,7 @@ interface WorkerMessage {
 	command: string
 	interval?: number
 	accurateTiming?: boolean
+	drift?: number
 }
 
 let timerID: ReturnType<typeof setTimeout> | null = null
@@ -20,12 +21,18 @@ let currentTime: number = -1
 let gap: number = -1
 let intervals: number = 0
 let accurateTiming: boolean = true
+let cumulativeDrift: number = 0
 
 const now = (): number => performance.now()
 
 const elapsed = (): number => ( now() - startTime) * 0.001
 
 const loop = (interval: number): void => {
+    
+    // Apply drift compensation
+    // Positive drift = running slow, decrease interval
+    // Negative drift = running fast, increase interval
+    const compensatedInterval = Math.max(interval + cumulativeDrift, 1)
     
     // Loop
     timerID = setTimeout( (): void =>{
@@ -42,12 +49,12 @@ const loop = (interval: number): void => {
         // console.log({expected,passed,difference,currentTime})
 
         // modify the interval to accomodate the drift
-        const nextInterval = accurateTiming ? interval + difference : interval 
+        const nextInterval = accurateTiming ? compensatedInterval + difference : compensatedInterval 
 
         // call itself with the new interval?
         loop(nextInterval)
 
-    }, interval)
+    }, compensatedInterval)
 }
 
 const reset = (): void =>{
@@ -100,6 +107,13 @@ self.onmessage = (e: MessageEvent<WorkerMessage>): void => {
 
         case CMD_UPDATE:
             start(data.interval || 250)
+            break
+
+        case CMD_ADJUST_DRIFT:
+            if (data.drift !== undefined) {
+                cumulativeDrift = data.drift
+                // Adjust next interval on next iteration
+            }
             break
     }
 }

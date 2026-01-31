@@ -551,14 +551,19 @@ export default class Timer {
         const Worklet = imports.default
         const { createTimingProcessor } = imports
 
-        this.timingWorkHandler = await createTimingProcessor(audioContext as AudioContext)
-        // this.timingWorkHandler = new Worklet( audioContext )
+        try {
+            this.timingWorkHandler = await createTimingProcessor(audioContext as AudioContext)
+            // this.timingWorkHandler = new Worklet( audioContext )
 
-        // console.error(type, "timer.audioworklet", {module, audioContext}, this.timingWorker ) 
-        if (wasRunning) {
-            this.startTimer()
+            // console.error(type, "timer.audioworklet", {module, audioContext}, this.timingWorker ) 
+            if (wasRunning) {
+                this.startTimer()
+            }
+            return this.timingWorkHandler
+        } catch (error) {
+            console.error("Failed to initialize AudioWorklet timer:", error)
+            throw error
         }
-        return this.timingWorkHandler
     }
 
     // WORKER ------------------------------------------------------------------------------------
