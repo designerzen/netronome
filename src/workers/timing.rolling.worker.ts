@@ -49,7 +49,7 @@ const loop = (): void => {
     // Apply drift compensation when checking interval
     // Positive drift = running slow, decrease gap (speed up)
     // Negative drift = running fast, increase gap (slow down)
-    const compensatedGap = Math.max(gap + cumulativeDrift, 1)
+    const compensatedGap = Math.max(gap - cumulativeDrift, 1)
     
     // if the currentTime is equal or greater to our rolling time + interval
     if (currentTime >= nextInterval)

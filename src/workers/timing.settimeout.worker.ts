@@ -30,9 +30,9 @@ const elapsed = (): number => ( now() - startTime) * 0.001
 const loop = (interval: number): void => {
     
     // Apply drift compensation
-    // Positive drift = running slow, decrease interval
-    // Negative drift = running fast, increase interval
-    const compensatedInterval = Math.max(interval + cumulativeDrift, 1)
+    // Positive drift = running slow, decrease interval (speed up)
+    // Negative drift = running fast, increase interval (slow down)
+    const compensatedInterval = Math.max(interval - cumulativeDrift, 1)
     
     // Loop
     timerID = setTimeout( (): void =>{

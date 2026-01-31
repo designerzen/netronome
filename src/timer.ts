@@ -20,8 +20,9 @@ interface TimerOptions {
     bars?: number
     divisions?: number
     bpm?: number
+    accurate?:boolean
     contexts?: Record<string, unknown> | null
-    type?: string
+    type?: string|WorkerWrapper
     processor?: string
     callback?: ((event: TimerCallbackEvent) => void) | null
     audioContext?: AudioContext
@@ -45,6 +46,8 @@ interface TimerCallbackEvent {
 
 const DEFAULT_TIMER_OPTIONS: TimerOptions = {
     
+    accurate:false,
+
     bars: 16,
     
     // keep this at 24 to match MIDI1.0 spec
@@ -118,6 +121,10 @@ export default class Timer {
 
     // we overwrite this with an audioContext if available
     getNow = (): number => performance.timeOrigin + performance.now()
+
+    get options(){
+        return this.#options
+    }
 
     /**
      * Can we use this timing method on this device?
@@ -819,8 +826,7 @@ export default class Timer {
             command: CMD_START,
             time: currentTime,
             interval: this.period,
-            // FIXME:
-            accurateTiming: false
+            accurateTiming: this.options.accurate
         }
         // send command to worker... options
         this.postMessage(payload)

@@ -38,9 +38,9 @@ const loop = (interval: number): void => {
     if (timerID !== null) clearInterval(timerID)
     
     // Apply drift compensation to the interval
-    // Positive drift = running slow, decrease interval
-    // Negative drift = running fast, increase interval
-    const compensatedInterval = Math.max(interval + cumulativeDrift, 1)
+    // Positive drift = running slow, decrease interval (speed up)
+    // Negative drift = running fast, increase interval (slow down)
+    const compensatedInterval = Math.max(interval - cumulativeDrift, 1)
     
     timerID = self.setInterval(() => {
         self.postMessage({ 
