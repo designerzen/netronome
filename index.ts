@@ -60,7 +60,6 @@ let tickCount = 0
 let isRunning = false
 let currentWorkerType = 'audiocontext'
 let performanceChart: PerformanceChart
-let cumulativeDrift = 0 // Track total drift for compensation
 let accurateMode = false
 let cpuStressEnabled = false
 let cpuStressAnimationId: number | null = null
@@ -72,7 +71,6 @@ const reset = () => {
     lags = []
     drifts = []
     tickCount = 0
-    cumulativeDrift = 0
     statIntervals.textContent = '0'
     statDrift.textContent = '0'
     statLag.textContent = '0'
@@ -144,9 +142,6 @@ startBtn.addEventListener('click', async () => {
 
         lags.push(lag)
         drifts.push(drift)
-        
-        // Track cumulative drift for compensation
-        cumulativeDrift += drift
 
         // Add data to chart (lag, timePassed, interval)
         performanceChart.addData(lag, timePassed, interval)
@@ -161,18 +156,20 @@ startBtn.addEventListener('click', async () => {
         statTicks.textContent = tickCount.toString()
 
         // Apply drift compensation if accurate mode is enabled
-        if (accurateMode && cumulativeDrift !== 0) {
+        if (accurateMode) {
             const timer = getTimer()
             if (timer) {
-                // Send drift compensation to the worker
+                // Send the measured drift directly to compensate for it
+                // Positive drift = running slow, subtract from interval to speed up
+                // Negative drift = running fast, add to interval to slow down
                 timer.postMessage({
                     command: CMD_ADJUST_DRIFT,
-                    drift: cumulativeDrift
+                    drift: drift
                 })
             }
         }
 
-        console.log("Tick", { intervals, drift, lag, tickCount, cumulativeDrift, accurateMode })
+        console.log("Tick", { intervals, drift, lag, tickCount, accurateMode })
     }, interval, { type: workerUri })
 })
 
@@ -197,7 +194,7 @@ stopBtn.addEventListener('click', () => {
     const averageLag = lags.length > 0 ? lags.reduce((a, b) => a + b, 0) / lags.length : 0
     const averageDrift = drifts.length > 0 ? drifts.reduce((a, b) => a + b, 0) / drifts.length : 0
 
-    console.log("Stopped with", currentWorkerType, { averageLag, averageDrift, totalTicks: tickCount, cumulativeDrift, accurateMode })
+    console.log("Stopped with", currentWorkerType, { averageLag, averageDrift, totalTicks: tickCount, accurateMode })
 })
 
 resetBtn.addEventListener('click', () => {
