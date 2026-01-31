@@ -47,14 +47,33 @@
           </select>
         </div>
 
+        <fieldset class="tempo-fieldset">
+          <legend>Tempo</legend>
+          <div class="tempo-controls">
+            <div class="control-group">
+              <label for="interval">Interval (ms)</label>
+              <input id="interval" type="number" value="250" min="10" max="5000" />
+            </div>
+
+            <div class="control-group">
+              <label for="bpm">BPM: <span id="bpm-value">120</span></label>
+              <input id="bpm" type="range" value="120" min="20" max="300" step="1" />
+            </div>
+          </div>
+        </fieldset>
+
         <div class="control-group">
-          <label for="interval">Interval (ms)</label>
-          <input id="interval" type="number" value="250" min="10" max="5000" />
+          <label for="accurate-mode">
+            <input id="accurate-mode" type="checkbox" />
+            Accurate Mode (drift compensation)
+          </label>
         </div>
 
         <div class="control-group">
-          <label for="bpm">BPM: <span id="bpm-value">120</span></label>
-          <input id="bpm" type="range" value="120" min="20" max="300" step="1" />
+          <label for="cpu-stress">
+            <input id="cpu-stress" type="checkbox" />
+            CPU Stress Test
+          </label>
         </div>
       </div>
 
@@ -62,6 +81,15 @@
         <button id="start">Start</button>
         <button id="stop" disabled>Stop</button>
         <button id="reset">Reset</button>
+        <button id="midi-connect">Connect MIDI</button>
+      </div>
+    </div>
+
+    <!-- Performance Chart -->
+    <div class="panel">
+      <div class="panel-title">Performance Monitor</div>
+      <div class="chart-container">
+        <canvas id="performance-chart"></canvas>
       </div>
     </div>
 
