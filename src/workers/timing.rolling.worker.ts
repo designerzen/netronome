@@ -46,10 +46,15 @@ const loop = (): void => {
 
     currentTime = now()
   
-    // Apply drift compensation when checking interval
-    // Positive drift = running slow, decrease gap (speed up)
-    // Negative drift = running fast, increase gap (slow down)
-    const compensatedGap = Math.max(gap - cumulativeDrift, 1)
+    // Apply drift compensation when checking interval only if accurate timing is enabled
+    // Small fractional adjustments to gradually correct drift
+    let compensatedGap = gap
+    if (accurateTiming && cumulativeDrift !== 0) {
+        // Dampen the drift correction to avoid overcorrection
+        // Use only 10% of measured drift to gradually steer back to target
+        const dampedDrift = cumulativeDrift * 0.1
+        compensatedGap = Math.max(gap - dampedDrift, 1)
+    }
     
     // if the currentTime is equal or greater to our rolling time + interval
     if (currentTime >= nextInterval)

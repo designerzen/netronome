@@ -37,10 +37,15 @@ const elapsed = (): number => ( now() - startTime) * 0.001
 const loop = (interval: number): void => {
     if (timerID !== null) clearInterval(timerID)
     
-    // Apply drift compensation to the interval
-    // Positive drift = running slow, decrease interval (speed up)
-    // Negative drift = running fast, increase interval (slow down)
-    const compensatedInterval = Math.max(interval - cumulativeDrift, 1)
+    // Apply drift compensation to the interval only if accurate timing is enabled
+    // Small fractional adjustments to gradually correct drift
+    let compensatedInterval = interval
+    if (accurateTiming && cumulativeDrift !== 0) {
+        // Dampen the drift correction to avoid overcorrection
+        // Use only 10% of measured drift to gradually steer back to target
+        const dampedDrift = cumulativeDrift * 0.1
+        compensatedInterval = Math.max(interval - dampedDrift, 1)
+    }
     
     timerID = self.setInterval(() => {
         self.postMessage({ 

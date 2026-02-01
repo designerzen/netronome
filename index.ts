@@ -158,10 +158,9 @@ startBtn.addEventListener('click', async () => {
         // Apply drift compensation if accurate mode is enabled
         if (accurateMode) {
             const timer = getTimer()
-            if (timer) {
-                // Send the measured drift directly to compensate for it
-                // Positive drift = running slow, subtract from interval to speed up
-                // Negative drift = running fast, add to interval to slow down
+            if (timer && tickCount > 5) {
+                // Only send drift adjustment after the system has stabilized (after tick 5)
+                // The worker will apply damping (10% of drift) to gradually correct
                 timer.postMessage({
                     command: CMD_ADJUST_DRIFT,
                     drift: drift
