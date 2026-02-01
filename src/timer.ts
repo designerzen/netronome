@@ -592,7 +592,10 @@ export default class Timer {
             }
             // Handle URL strings
             else if (typeof type === 'string') {
-                return new Worker(type, { type: 'module' })
+                // Resolve relative to the app base path for GitHub Pages compatibility
+                const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`
+                const url = new URL(type, baseUrl).href
+                return new Worker(url, { type: 'module' })
             }
             else {
                 throw new Error(`Invalid worker type: expected function or string, got ${typeof type}`)
