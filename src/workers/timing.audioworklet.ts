@@ -72,10 +72,17 @@ export default class TimingAudioWorkletNode extends AudioWorkletNode {
 	 * @returns 
 	 */
 	postMessage( data: TimingMessage ): void {
+		// Update interval if provided in message
+		if (data.interval !== undefined) {
+			this.interval = data.interval
+		}
 		return this.port.postMessage(data)
 	}
 
-	start(): void {
+	start(interval?: number): void {
+		if (interval !== undefined) {
+			this.interval = interval
+		}
 		this.postMessage({command:CMD_START, interval:this.interval, accurateTiming:this.accurateTiming })
 	}
 

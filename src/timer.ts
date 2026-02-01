@@ -554,14 +554,18 @@ export default class Timer {
             await this.unsetTimingWorker()
         }
 
-        // const imports = await import(type)
-        const imports = await import('./workers/timing.audioworklet.js')
-        const Worklet = imports.default
-        const { createTimingProcessor } = imports
-
         try {
-            this.timingWorkHandler = await createTimingProcessor(audioContext as AudioContext)
-            // this.timingWorkHandler = new Worklet( audioContext )
+            // Dynamically import the worklet based on type parameter
+            const imports = await import('./workers/timing.audioworklet.js')
+            const { createTimingProcessor } = imports
+
+            // Ensure we have an AudioContext
+            if (!audioContext) {
+                throw new Error('AudioContext is required for AudioWorklet')
+            }
+
+            this.timingWorkHandler = await createTimingProcessor(audioContext)
+            this.isCompatible = true
 
             // console.error(type, "timer.audioworklet", {module, audioContext}, this.timingWorker ) 
             if (wasRunning) {
@@ -570,6 +574,7 @@ export default class Timer {
             return this.timingWorkHandler
         } catch (error) {
             console.error("Failed to initialize AudioWorklet timer:", error)
+            this.isCompatible = false
             throw error
         }
     }

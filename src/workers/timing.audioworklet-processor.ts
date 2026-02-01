@@ -7,7 +7,7 @@
 */
 import {
 	CMD_INITIALISE,
-	CMD_START,CMD_STOP,CMD_UPDATE,
+	CMD_START,CMD_STOP,CMD_UPDATE,CMD_ADJUST_DRIFT,
 	EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 } from '../timer-event-types'
 
@@ -18,6 +18,7 @@ interface ProcessorMessage {
 	accurateTiming?: boolean
 	time?: number
 	intervals?: number
+	drift?: number
 }
 
 declare const currentTime: number
@@ -39,6 +40,7 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 	nextInterval: number = -1
 	gap: number = 0
 	intervals: number = 0		// loop counter
+	cumulativeDrift: number = 0
 
 	port!: MessagePort
 
@@ -124,10 +126,19 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 			}
 		}
 
+		// Apply drift compensation only if accurate timing is enabled
+		let compensatedGap = this.gap
+		if (this.accurateTiming && this.cumulativeDrift !== 0) {
+			// Dampen the drift correction to avoid overcorrection
+			// Use only 10% of measured drift to gradually steer back to target
+			const dampedDrift = this.cumulativeDrift * 0.1
+			compensatedGap = Math.max(this.gap - dampedDrift, 0.001)
+		}
+
 		if (this.isRunning && currentTime >= this.nextInterval )
 		{
 			// console.info("Timer Processor:BEAT", this.nextInterval, currentTime )
-			this.onTick()
+			this.onTick(compensatedGap)
 		// }else{
 			// console.info("Timer WAITING ", this.nextInterval - currentTime )
 		}
@@ -139,9 +150,9 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 	/**
 	 * 
 	 */
-	onTick(): void {
+	onTick(compensatedGap: number = this.gap): void {
 		this.intervals++
-		this.nextInterval = currentTime + this.gap
+		this.nextInterval = currentTime + compensatedGap
 		this.postMessage({event:EVENT_TICK, time:this.elapsed, intervals:this.intervals })
 	}
 
@@ -177,6 +188,12 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 	
 			case CMD_UPDATE:
 				this.start(data.interval)
+				break
+
+			case CMD_ADJUST_DRIFT:
+				if (data.drift !== undefined) {
+					this.cumulativeDrift = data.drift
+				}
 				break
 
 			default:
