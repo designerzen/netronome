@@ -587,21 +587,21 @@ export default class Timer {
         }
         
         try {
-            // Handle URL strings from ?url imports
-            if (typeof type === 'string') {
-                // Vite ?url imports are already resolved to correct paths
-                // Just ensure they're absolute URLs
+            // Handle Worker constructor from ?worker imports (default for production)
+            if (typeof type === 'function') {
+                console.debug('Loading worker from constructor')
+                return new type()
+            }
+            // Fallback: Handle URL strings for flexibility
+            else if (typeof type === 'string') {
+                // Ensure absolute URLs for GitHub Pages compatibility
                 let workerUrl = type
                 if (!workerUrl.startsWith('http') && !workerUrl.startsWith('blob:')) {
                     const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`
                     workerUrl = new URL(type, baseUrl).href
                 }
-                console.debug('Loading worker from:', workerUrl)
+                console.debug('Loading worker from URL:', workerUrl)
                 return new Worker(workerUrl, { type: 'module' })
-            }
-            // Handle Worker constructor (from legacy ?worker imports)
-            else if (typeof type === 'function') {
-                return new type()
             }
             else {
                 throw new Error(`Invalid worker type: expected function or string, got ${typeof type}`)
