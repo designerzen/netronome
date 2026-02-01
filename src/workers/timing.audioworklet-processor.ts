@@ -21,6 +21,12 @@ interface ProcessorMessage {
 }
 
 declare const currentTime: number
+declare function registerProcessor(name: string, processorConstructor: typeof AudioWorkletProcessor): void
+
+declare class AudioWorkletProcessor {
+	port: MessagePort
+	process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean
+}
 
 class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
  
@@ -33,6 +39,8 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 	nextInterval: number = -1
 	gap: number = 0
 	intervals: number = 0		// loop counter
+
+	port!: MessagePort
 
 	get elapsed(): number {
 		return currentTime - this.startTime

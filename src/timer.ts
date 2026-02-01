@@ -431,12 +431,13 @@ export default class Timer {
         }
 
         // 
-        const isWorklet = isFileWorklet(options.type || '')
+        const typeStr = typeof options.type === 'string' ? options.type : ''
+        const isWorklet = isFileWorklet(typeStr)
         console.info("Timer:", options.type, this.timingWorkHandler, { isWorklet, options })
 
         if (isWorklet) {
             this.loaded = this.setTimingWorklet(
-                options.type || '',
+                typeStr,
                 options.processor || '',
                 this.audioContext
             ) as any
@@ -554,7 +555,7 @@ export default class Timer {
         }
 
         // const imports = await import(type)
-        const imports = await import('./workers/timing.audioworklet.ts')
+        const imports = await import('./workers/timing.audioworklet.js')
         const Worklet = imports.default
         const { createTimingProcessor } = imports
 
@@ -580,22 +581,27 @@ export default class Timer {
      * @param type URL or identifier
      * @returns the worker instance
      */
-    async loadTimingWorker(type: string|WorkerWrapper): Promise<Worker> {
+    async loadTimingWorker(type: string | WorkerWrapper): Promise<Worker> {
         if (typeof Worker === 'undefined') {
             throw new Error('Worker is not available in this environment')
         }
         
         try {
-            // Handle Worker constructor (from ?worker imports)
-            if (typeof type === 'function') {
-                return new type()
+            // Handle URL strings from ?url imports
+            if (typeof type === 'string') {
+                // Vite ?url imports are already resolved to correct paths
+                // Just ensure they're absolute URLs
+                let workerUrl = type
+                if (!workerUrl.startsWith('http') && !workerUrl.startsWith('blob:')) {
+                    const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`
+                    workerUrl = new URL(type, baseUrl).href
+                }
+                console.debug('Loading worker from:', workerUrl)
+                return new Worker(workerUrl, { type: 'module' })
             }
-            // Handle URL strings
-            else if (typeof type === 'string') {
-                // Resolve relative to the app base path for GitHub Pages compatibility
-                const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`
-                const url = new URL(type, baseUrl).href
-                return new Worker(url, { type: 'module' })
+            // Handle Worker constructor (from legacy ?worker imports)
+            else if (typeof type === 'function') {
+                return new type()
             }
             else {
                 throw new Error(`Invalid worker type: expected function or string, got ${typeof type}`)
@@ -614,7 +620,7 @@ export default class Timer {
      * @param type URL or identifier
      * @returns the worker instance or null if failed
      */
-    async setTimingWorker(type: string): Promise<Worker | null> {
+    async setTimingWorker(type: string | WorkerWrapper): Promise<Worker | null> {
         try {
 
             let wasRunning = this.#running
@@ -728,10 +734,18 @@ export default class Timer {
 
         // Worker Loading Error!
         (worker as any).onerror = (event: ErrorEvent) => {
-            const payload = { error: event.message || 'Unknown error', time: this.now }
-            console.error("Timer:Worker error", event, payload)
+            const errorMsg = event.message || event.filename || 'Unknown error'
+            const errorDetails = {
+                error: errorMsg,
+                filename: event.filename,
+                lineno: event.lineno,
+                colno: event.colno,
+                stack: event.error?.stack,
+                time: this.now
+            }
+            console.error("Timer:Worker error", event, errorDetails)
             if (worker) {
-                (worker as any).postMessage(payload)
+                (worker as any).postMessage(errorDetails)
             }
         }
     }
