@@ -2,6 +2,8 @@
 
 A high-precision timing and tempo library for JavaScript, designed to achieve near-perfect timing accuracy in native JavaScript. Provides multiple timing backends using Web Workers, AudioContext, and more for accurate scheduling and beat synchronization.
 
+**[Live Demo](https://designerzen.github.io/netronome/)** - Test timing accuracy in your browser
+
 ## Overview
 
 Netronome is a comprehensive timing system that prioritizes accuracy in JavaScript environments. It mitigates browser timing limitations (like [Spectre/Meltdown mitigations](https://developer.mozilla.org/en-US/docs/Glossary/spectre) that round timer values) by offering multiple timing backends with varying precision characteristics. The library is particularly useful for music production, metronomes, sequencers, and any application requiring precise temporal control.
