@@ -14,6 +14,8 @@ import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
 import { WorkerWrapper } from './vite-env'
 
+import Epoch from './Epoch'
+
 export const MAX_BARS_ALLOWED = 32
 
 interface TimerOptions {
@@ -26,6 +28,7 @@ interface TimerOptions {
     processor?: string
     callback?: ((event: TimerCallbackEvent) => void) | null
     audioContext?: AudioContext
+    synch?: boolean
 }
 
 type TimingHandler = Worker | AudioWorkletNode | null
@@ -63,7 +66,9 @@ const DEFAULT_TIMER_OPTIONS: TimerOptions = {
     // type:AUDIOTIMER_WORKLET_URI,
     // processor:AUDIOTIMER_PROCESSOR_URI,
 
-    callback: null
+    callback: null,
+
+    synch: true
 }
 
 /**
@@ -118,6 +123,10 @@ export default class Timer {
     #options:TimerOptions
 
     callback?: (event: TimerCallbackEvent) => void
+
+    // Epoch synchronization
+    #epoch: Epoch = Epoch.getInstance()
+    #synchronizationOffset: number = 0
 
     // we overwrite this with an audioContext if available
     getNow = (): number => performance.timeOrigin + performance.now()
@@ -818,6 +827,10 @@ export default class Timer {
         options: Record<string, unknown> = {}
     ): Promise<{ time: number; interval: number; worker: TimingHandler }> {
 
+        if (options) {
+            this.#options = { ...options, ...this.#options }
+        }
+
         await this.loaded
 
         const currentTime = this.now
@@ -829,6 +842,11 @@ export default class Timer {
 
         if (callback) {
             this.setCallback(callback)
+        }
+
+        // Calculate synchronization offset if enabled
+        if (this.#options.synch) {
+            this.#synchronizationOffset = this.#epoch.synchronizeMetronome(this.period)
         }
 
         // if we are using an external clock
@@ -848,8 +866,10 @@ export default class Timer {
             command: CMD_START,
             time: currentTime,
             interval: this.period,
-            accurateTiming: this.options.accurate
+            accurateTiming: this.options.accurate,
+            synchronizationOffset: this.#synchronizationOffset
         }
+
         // send command to worker... options
         this.postMessage(payload)
 
@@ -874,6 +894,8 @@ export default class Timer {
         // cancel the thing thrugh the workers first
         // cancel any scheduled quie noises
         this.disconnectWorker(this.timingWorkHandler)
+
+        
 
         return {
             currentTime,
@@ -917,6 +939,38 @@ export default class Timer {
             return tempo
         }
         return -1
+    }
+
+    /**
+     * Get the current synchronization offset
+     * @returns the offset in milliseconds to the next global tick
+     */
+    getSynchronizationOffset(): number {
+        return this.#synchronizationOffset
+    }
+
+    /**
+     * Get the current tick number on the global metronome grid
+     * @returns the tick number
+     */
+    getGlobalTickNumber(): number {
+        return this.#epoch.getTickNumber(this.period)
+    }
+
+    /**
+     * Enable or disable synchronization for this timer
+     * @param enabled whether synchronization should be enabled
+     */
+    setSynchronized(enabled: boolean): void {
+        this.#options.synch = enabled
+    }
+
+    /**
+     * Check if this timer is synch to the global grid
+     * @returns whether synchronization is enabled
+     */
+    isSynchronized(): boolean {
+        return this.#options.synch ?? true
     }
 
     /**

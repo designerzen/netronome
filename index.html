@@ -35,7 +35,12 @@
       <div class="panel-title">Controls</div>
 
       <div class="controls-grid">
-        <div class="control-group">
+
+        <fieldset class="control-group">
+          <legend>Technique</legend>
+          <p>
+            Spectre changed how browsers approach accurate timing
+          </p>
           <label for="worker-type">Worker Type</label>
           <select id="worker-type">
             <option value="audiocontext">Audio Context Worker</option>
@@ -45,7 +50,7 @@
             <option value="setinterval">SetInterval Worker</option>
             <option value="settimeout">SetTimeout Worker</option>
           </select>
-        </div>
+        </fieldset>
 
         <fieldset class="tempo-fieldset">
           <legend>Tempo</legend>
@@ -62,19 +67,22 @@
           </div>
         </fieldset>
 
-        <div class="control-group">
+         <fieldset class="control-group">
+          
+          <legend>Modes</legend>
+
           <label for="accurate-mode">
             <input id="accurate-mode" type="checkbox" />
             Accurate Mode (drift compensation)
-          </label>
-        </div>
+          </label> 
 
-        <div class="control-group">
           <label for="cpu-stress">
             <input id="cpu-stress" type="checkbox" />
             CPU Stress Test
           </label>
-        </div>
+
+        </fieldset>
+
       </div>
 
       <div class="button-group">
