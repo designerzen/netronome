@@ -1,6 +1,7 @@
 {
   "name": "netronome",
   "version": "2.1.0",
+  "private": true,
   "description": "rock solid js timing experiments",
   "main": "dist/index.js",
   "module": "dist/index.es.js",
