@@ -339,3 +339,343 @@ tr:last-child td {
   height: 100%;
   display: block;
 }
+
+/* Timer Creation Form */
+.timer-creation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.timer-creation-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 150px;
+}
+
+.form-group label {
+  font-size: 0.875rem;
+  color: light-dark(#555, #aaa);
+  font-weight: 500;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select {
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid light-dark(#ddd, #444);
+  border-radius: 4px;
+  background: light-dark(#ffffff, #333);
+  color: light-dark(#1a1a1a, #f5f5f5);
+}
+
+.form-group input[type="range"] {
+  padding: 0;
+  width: 100%;
+}
+
+.timer-creation-row > label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: light-dark(#555, #aaa);
+  cursor: pointer;
+  flex: 1;
+  min-width: 200px;
+}
+
+.timer-creation-row > label input[type="checkbox"] {
+  cursor: pointer;
+  width: auto;
+  height: auto;
+  padding: 0;
+}
+
+#create-timer {
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  transition: background 0.3s;
+}
+
+#create-timer:hover {
+  background: #218838;
+}
+
+#create-timer:disabled {
+  background: light-dark(#ccc, #666);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Multi-Timer Styles */
+.timers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.timer-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: light-dark(#f9f9f9, #333);
+  border: 1px solid light-dark(#e0e0e0, #444);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.timer-item:hover {
+  background: light-dark(#f0f0f0, #3a3a3a);
+  border-color: #007bff;
+}
+
+.timer-item.active {
+  background: light-dark(#e3f2fd, #1e3a5f);
+  border-color: #007bff;
+}
+
+.timer-color-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.timer-item-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.timer-name {
+  font-weight: 500;
+  color: light-dark(#1a1a1a, #e0e0e0);
+  white-space: nowrap;
+}
+
+.timer-status {
+  font-size: 0.875rem;
+  color: light-dark(#666, #999);
+}
+
+.timer-item-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.timer-item-controls button {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  border: none;
+  border-radius: 3px;
+  background: #007bff;
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.timer-item-controls button:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.timer-item-controls button:disabled {
+  background: light-dark(#ccc, #666);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.timer-item-controls button.remove {
+  background: #dc3545;
+}
+
+.timer-item-controls button.remove:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.timer-details-panel {
+  background: light-dark(#ffffff, #2a2a2a);
+  border: 1px solid light-dark(#e0e0e0, #444);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+.timer-details-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.timer-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.timer-detail-section h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: light-dark(#1a1a1a, #e0e0e0);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.timer-detail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.timer-detail-group label {
+  font-size: 0.75rem;
+  color: light-dark(#666, #999);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.timer-detail-value {
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  background: light-dark(#f5f5f5, #333);
+  border: 1px solid light-dark(#ddd, #444);
+  border-radius: 4px;
+  color: light-dark(#1a1a1a, #f5f5f5);
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.timer-detail-group input,
+.timer-detail-group select {
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  border: 1px solid light-dark(#ddd, #444);
+  border-radius: 4px;
+  background: light-dark(#f5f5f5, #333);
+  color: light-dark(#1a1a1a, #f5f5f5);
+}
+
+.timer-detail-group input:disabled,
+.timer-detail-group select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.timer-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.timer-stat-card {
+  background: light-dark(#f9f9f9, #333);
+  padding: 0.75rem;
+  border-radius: 4px;
+  border-left: 2px solid #007bff;
+}
+
+.timer-stat-label {
+  font-size: 0.7rem;
+  color: light-dark(#666, #999);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.375rem;
+}
+
+.timer-stat-value {
+  font-size: 1.125rem;
+  font-weight: 600;
+  font-family: 'Monaco', 'Menlo', monospace;
+  color: light-dark(#1a1a1a, #f5f5f5);
+}
+
+.timer-detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.timer-detail-actions button {
+  flex: 1;
+  min-width: 80px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border: none;
+  border-radius: 4px;
+  background: #007bff;
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s;
+  font-weight: 500;
+}
+
+.timer-detail-actions button:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.timer-detail-actions button:disabled {
+  background: light-dark(#ccc, #666);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.timer-detail-actions button.remove {
+  background: #dc3545;
+}
+
+.timer-detail-actions button.remove:hover:not(:disabled) {
+  background: #c82333;
+}
+
+#multi-timer-chart {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#add-timer {
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
+  padding: 0.75rem 1.5rem;
+}
+
+#add-timer:hover {
+  background: #218838;
+}
+
+#add-timer:disabled {
+  background: light-dark(#ccc, #666);
+  cursor: not-allowed;
+  opacity: 0.6;
+}

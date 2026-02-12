@@ -8,17 +8,17 @@ import {
     EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 } from './timer-event-types'
 
-import { AUDIOCONTEXT_WORKER_URI, AUDIOCONTEXT_WORKLET_URI } from './timer-worker-types'
+import { AudioContextWorkerWrapper, TimingWorkletNode, createTimingWorklet } from './timer-worker-types'
 
 import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
 import { WorkerWrapper } from './vite-env'
 
-import Epoch from './Epoch'
+import Epoch from './epoch'
 
 export const MAX_BARS_ALLOWED = 32
 
-interface TimerOptions {
+export interface TimerOptions {
     bars?: number
     divisions?: number
     bpm?: number
@@ -62,7 +62,7 @@ const DEFAULT_TIMER_OPTIONS: TimerOptions = {
     contexts: null,
 
     // can be base64 encoded too
-    type: AUDIOCONTEXT_WORKER_URI,
+    type: AudioContextWorkerWrapper,
     // type:AUDIOTIMER_WORKLET_URI,
     // processor:AUDIOTIMER_PROCESSOR_URI,
 
@@ -318,19 +318,19 @@ export default class Timer {
 
 
     // Positions & booleans
-
+    get isAtStart(): boolean {
+        return this.divisionsElapsed === 0
+    }
     get isAtStartOfBar(): boolean {
         return this.barProgress === 0
     }
     get isStartBar(): boolean {
         return this.currentBar === 0
     }
-    get isAtStart(): boolean {
-        return this.divisionsElapsed === 0
-    }
     get isAtMiddleOfBar(): boolean {
         return this.barProgress === 0.5
     }
+    
     get isQuarterNote(): boolean {
         return this.beatProgress % 0.25 === 0
     }
@@ -407,7 +407,7 @@ export default class Timer {
         this.swingOffset = value * this.divisions
     }
 
-    constructor(options: TimerOptions = DEFAULT_TIMER_OPTIONS) {
+    constructor(options: TimerOptions = DEFAULT_TIMER_OPTIONS, isWorklet: boolean = true) {
         this.loaded = Promise.resolve()
         
         options = { ...DEFAULT_TIMER_OPTIONS, ...options }        
@@ -441,7 +441,6 @@ export default class Timer {
 
         // 
         const typeStr = typeof options.type === 'string' ? options.type : ''
-        const isWorklet = isFileWorklet(typeStr)
         console.info("Timer:", options.type, this.timingWorkHandler, { isWorklet, options })
 
         if (isWorklet) {
@@ -565,15 +564,15 @@ export default class Timer {
 
         try {
             // Dynamically import the worklet based on type parameter
-            const imports = await import('./workers/timing.audioworklet.js')
-            const { createTimingProcessor } = imports
+            const imports = await import('./worklets/timing.audioworklet.js')
+            const { createTimingWorklet } = imports
 
             // Ensure we have an AudioContext
             if (!audioContext) {
                 throw new Error('AudioContext is required for AudioWorklet')
             }
 
-            this.timingWorkHandler = await createTimingProcessor(audioContext)
+            this.timingWorkHandler = await createTimingWorklet(audioContext)
             this.isCompatible = true
 
             // console.error(type, "timer.audioworklet", {module, audioContext}, this.timingWorker ) 

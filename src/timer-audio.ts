@@ -1,24 +1,22 @@
 import Timer from "./timer"
 
-import AUDIOTIMER_WORKLET_URI from './workers/timing.audioworklet.ts?url'
-import AUDIOTIMER_PROCESSOR_URI from './workers/timing.audioworklet-processor.ts?url'
-// FIXME: 
-import AUDIOCONTEXT_WORKER_URI from './workers/timing.audiocontext.worker.ts?url'
+import { 
+	AudioContextWorkerWrapper,
+	createTimingWorklet
+} from './timer-worker-types'
 
 interface AudioTimerOptions {
 	divisions: number
-	type: string
+	type?: string | any
 	processor?: string
+	audioContext?: AudioContext
 }
 
 const DEFAULT_AUDIO_TIMER_OPTIONS: AudioTimerOptions = {
 
 	// keep this at 24 to match MIDI1.0 spec
 	// where there are 24 ticks per quarternote
-	divisions: 24,
-
-	type: AUDIOTIMER_WORKLET_URI,
-	processor: AUDIOTIMER_PROCESSOR_URI,
+	divisions: 24
 }
 
 export default class AudioTimer extends Timer {
@@ -36,21 +34,20 @@ export default class AudioTimer extends Timer {
 		return this.audioContext ? this.audioContext.currentTime : performance.now() 
 	}
 	
-	constructor(audioContext: AudioContext, worklet: boolean = true){
-		const timerOptions: any = {
+	constructor(audioContext: AudioContext, isWorklet: boolean = true){
+		const timerOptions: AudioTimerOptions = {
 			audioContext,
 			...DEFAULT_AUDIO_TIMER_OPTIONS
 		}
 
-		if (!worklet)
+		if (!isWorklet)
 		{
-			timerOptions.type = AUDIOCONTEXT_WORKER_URI
+			timerOptions.type = AudioContextWorkerWrapper
 		}else{
-			timerOptions.type = AUDIOTIMER_WORKLET_URI
-			timerOptions.processor = AUDIOTIMER_PROCESSOR_URI
+			timerOptions.type = createTimingWorklet( audioContext )
 		}
 
-		super( timerOptions )
+		super( timerOptions, isWorklet )
 		if (!this.audioContext)
 		{
 			throw Error('No AudioContext specified')
@@ -59,7 +56,7 @@ export default class AudioTimer extends Timer {
 
 	/**
 	 * 
-	 * @param {*} callback 
+	 * @param {Function} callback 
 	 * @param {*} options 
 	 */
 	async startTimer( callback?: ((event: any) => void), options: Record<string, unknown> = {} ){
@@ -68,7 +65,7 @@ export default class AudioTimer extends Timer {
 		// in the event handler of a user action: we attempt to resume it.
 		if (this.audioContext && this.audioContext.state === 'suspended') 
 		{
-			this.audioContext.resume()
+			await this.audioContext.resume()
 		}
 		return await super.startTimer(callback, options)
 	}

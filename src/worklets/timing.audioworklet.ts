@@ -1,30 +1,5 @@
 import AUDIOTIMER_PROCESSOR_URI from './timing.audioworklet-processor?url'
 
-/**
- * Wrap the above in a single call
- * @param {AudioContext} context 
- * @returns 
- */
-export const createTimingProcessor = async (context: AudioContext): Promise<TimingAudioWorkletNode> =>{
-	try{
-		await context.audioWorklet.addModule(AUDIOTIMER_PROCESSOR_URI)
-		console.info("AudioWorklet processor loaded successfully from:", AUDIOTIMER_PROCESSOR_URI)
-	}catch(error){
-		console.error("AudioWorklet processor failed to load from:", AUDIOTIMER_PROCESSOR_URI, error)
-		throw new Error(`Failed to load AudioWorklet processor: ${error instanceof Error ? error.message : String(error)}`)
-	}
-	const worker = new TimingAudioWorkletNode(context)
-
-	return worker
-}
-
-
-import {
-	CMD_INITIALISE,
-	CMD_START,CMD_STOP,CMD_UPDATE,
-	EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
-} from '../timer-event-types'
-
 interface TimingMessage {
 	command?: string
 	event?: string
@@ -33,6 +8,29 @@ interface TimingMessage {
 	time?: number
 	intervals?: number
 }
+
+/**
+ * Wrap the above in a single call
+ * @param {AudioContext} context 
+ * @returns A new TimingAudioWorkletNode instance
+ */
+export const createTimingWorklet = async (context: AudioContext): Promise<TimingAudioWorkletNode> =>{
+	try{
+		await context.audioWorklet.addModule(AUDIOTIMER_PROCESSOR_URI)
+		console.info("AudioWorklet processor loaded successfully from:", AUDIOTIMER_PROCESSOR_URI)
+	}catch(error){
+		console.error("AudioWorklet processor failed to load from:", AUDIOTIMER_PROCESSOR_URI, error)
+		throw new Error(`Failed to load AudioWorklet processor: ${error instanceof Error ? error.message : String(error)}`)
+	}
+
+	return new TimingAudioWorkletNode(context)
+}
+
+import {
+	CMD_INITIALISE,
+	CMD_START,CMD_STOP,CMD_UPDATE,
+	EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
+} from '../timer-event-types'
 
 /**
  * Gateway to the metronome AudioWorkletProcessor
@@ -52,7 +50,7 @@ export default class TimingAudioWorkletNode extends AudioWorkletNode {
 		]
 	}
 	
-	interval: number = 10
+	#interval: number = 10
 	accurateTiming: boolean = false
 	
 	onmessage?: (event: MessageEvent<TimingMessage>) => void
@@ -74,16 +72,16 @@ export default class TimingAudioWorkletNode extends AudioWorkletNode {
 	postMessage( data: TimingMessage ): void {
 		// Update interval if provided in message
 		if (data.interval !== undefined) {
-			this.interval = data.interval
+			this.#interval = data.interval
 		}
 		return this.port.postMessage(data)
 	}
 
 	start(interval?: number): void {
 		if (interval !== undefined) {
-			this.interval = interval
+			this.#interval = interval
 		}
-		this.postMessage({command:CMD_START, interval:this.interval, accurateTiming:this.accurateTiming })
+		this.postMessage({command:CMD_START, interval:this.#interval, accurateTiming:this.accurateTiming })
 	}
 
 	stop(): void {

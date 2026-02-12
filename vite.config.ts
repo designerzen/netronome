@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 
 export default defineConfig({
   base: '/netronome/',
+  plugins: [basicSsl()],
   worker: {
     format: 'es'
   },
@@ -19,7 +21,6 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    https: process.env.HTTPS === 'true',
     open: true
   },
   preview: {

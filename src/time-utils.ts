@@ -14,14 +14,14 @@ export const Ticks = {
 
 /**
  * Convert a BPM to a period in ms
- * @param {Number} bpm beats per minute
+ * @param {Number|String} bpm beats per minute
  * @returns {Number} time in milliseconds
  */
 export const convertBPMToPeriod = (bpm: number) => MICROSECONDS_PER_MINUTE / parseFloat(String(bpm))
 
 /**
  * Convert a period in ms to a BPM
- * @param {Number} period millisecods
+ * @param {Number|String} period millisecods
  * @returns {Number} time in milliseconds
  */
 export const convertPeriodToBPM = (period: number) => MICROSECONDS_PER_MINUTE / parseFloat(String(period))
@@ -63,10 +63,16 @@ export const secondsToTicks = (seconds: number, bpm: number, resolution: number 
  * Pass in a Timer, return a formatted time
  * such as HH:MM:SS
  */
+const timestampCache = new Map()
 export const formatTimeStampFromSeconds = (seconds: number) => {
+    if (timestampCache.has(seconds)){
+        return timestampCache.get(seconds)
+    }
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
     const remainingSeconds = (seconds % 60)
     const milliseconds = (remainingSeconds % 1).toFixed(2).slice(2)
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(Math.floor(remainingSeconds)).padStart(2, '0')}:${String(milliseconds).padStart(2, '0')}`
+    const string = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(Math.floor(remainingSeconds)).padStart(2, '0')}:${String(milliseconds).padStart(2, '0')}`
+    timestampCache.set(seconds, string)
+    return string
 }

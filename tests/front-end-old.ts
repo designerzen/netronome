@@ -1,5 +1,5 @@
-// Netronome - Unified Timer Management
-import { createTimer } from '../src/timer-global.ts'
+// Netronome - Timing Experiments
+import { startTimer, stopTimer, setTimeBetween, createTimer, getTimer } from '../src/timer-global.js'
 import {
     AudioContextWorkerWrapper,
     TimingWorkletNode,
@@ -8,6 +8,8 @@ import {
     SetIntervalWorkerWrapper,
     SetTimeoutWorkerWrapper
 } from '../src/timer-worker-types.js'
+import { CMD_ADJUST_DRIFT } from '../src/timer-event-types.js'
+import { PerformanceChart } from '../public/performance-chart.js'
 import { MultiTimerManager } from '../public/multi-timer.ts'
 import { MultiTimerChart } from '../public/multi-timer-chart.ts'
 
@@ -30,29 +32,45 @@ const WORKER_TYPES: Record<string, string> = {
     settimeout: SetTimeoutWorkerWrapper
 }
 
-// ===== UI ELEMENTS =====
-
-// Timer Creation Form
-const newTimerNameInput = document.getElementById('new-timer-name') as HTMLInputElement
-const newTimerBpmInput = document.getElementById('new-timer-bpm') as HTMLInputElement
-const newTimerBpmSlider = document.getElementById('new-timer-bpm-slider') as HTMLInputElement
-const newTimerWorkerSelect = document.getElementById('new-timer-worker') as HTMLSelectElement
-const newTimerAccurateCheckbox = document.getElementById('new-timer-accurate') as HTMLInputElement
-const newTimerMetronomeCheckbox = document.getElementById('new-timer-metronome') as HTMLInputElement
-const newTimerCpuStressCheckbox = document.getElementById('new-timer-cpu-stress') as HTMLInputElement
-const newTimerMidiCheckbox = document.getElementById('new-timer-midi') as HTMLInputElement
-const createTimerBtn = document.getElementById('create-timer') as HTMLButtonElement
-
-// Active Timers Display
-const timersList = document.getElementById('timers-list')!
-const timerDetailsPanel = document.getElementById('timer-details-panel')!
-const timerDetailsContent = timerDetailsPanel.querySelector('.timer-details-content')!
-
-// Theme
+// UI Elements - Single Timer
+const feedbackTable = document.getElementById('feedback')!
+const startBtn = document.getElementById('start') as HTMLButtonElement
+const stopBtn = document.getElementById('stop') as HTMLButtonElement
+const resetBtn = document.getElementById('reset') as HTMLButtonElement
+const workerTypeSelector = document.getElementById('worker-type') as HTMLSelectElement
+const intervalInput = document.getElementById('interval') as HTMLInputElement
+const bpmSlider = document.getElementById('bpm') as HTMLInputElement
+const bpmValue = document.getElementById('bpm-value')!
 const themeToggle = document.getElementById('theme-toggle') as HTMLButtonElement
+const accurateModeCheckbox = document.getElementById('accurate-mode') as HTMLInputElement
+const cpuStressCheckbox = document.getElementById('cpu-stress') as HTMLInputElement
+const midiConnectBtn = document.getElementById('midi-connect') as HTMLButtonElement
 
-// ===== STATE =====
+// Stats Elements - Single Timer
+const statIntervals = document.getElementById('stat-intervals')!
+const statDrift = document.getElementById('stat-drift')!
+const statLag = document.getElementById('stat-lag')!
+const statTicks = document.getElementById('stat-ticks')!
 
+// UI Elements - Multi-Timer
+const addTimerBtn = document.getElementById('add-timer')!
+
+// State - Single Timer
+let interval = 1000
+let bpm = 120
+let lags: number[] = []
+let drifts: number[] = []
+let tickCount = 0
+let isRunning = false
+let currentWorkerType = 'audiocontext'
+let accurateMode = false
+let cpuStressEnabled = false
+let cpuStressAnimationId: number | null = null
+let midiOutputs: MIDIOutput[] = []
+let midiTransportStarted = false
+let midiClockCounter = 0
+
+// State - Multi-Timer
 interface RunningTimer {
     id: string
     timer: any
@@ -67,19 +85,207 @@ interface RunningTimer {
 const multiTimerManager = new MultiTimerManager()
 const runningTimers = new Map<string, RunningTimer>()
 let multiChart: MultiTimerChart
-let selectedTimerId: string | null = null
-let cpuStressEnabled = false
-let cpuStressAnimationId: number | null = null
-let midiOutputs: MIDIOutput[] = []
-let audioContext: AudioContext | null = null
+let isAnyMultiTimerRunning = false
 
-// ===== INITIALIZATION =====
+const reset = () => {
+    lags = []
+    drifts = []
+    tickCount = 0
+    statIntervals.textContent = '0'
+    statDrift.textContent = '0'
+    statLag.textContent = '0'
+    statTicks.textContent = '0'
+    feedbackTable.innerHTML = '<tr class="empty-state"><td colspan="6">Click Start to begin collecting timing data</td></tr>'
+    if (multiChart) {
+        multiChart.clearTimer('single-timer')
+    }
+}
 
+startBtn.addEventListener('click', async () => {
+    if (isRunning) return
+    
+    reset()
+    isRunning = true
+    accurateMode = accurateModeCheckbox.checked
+    
+    // Initialize multi-timer chart if not already created
+    initMultiChart()
+    
+    startBtn.disabled = true
+    stopBtn.disabled = false
+    workerTypeSelector.disabled = true
+    intervalInput.disabled = true
+    accurateModeCheckbox.disabled = true
+
+    // Get the selected worker type
+    const selectedType = workerTypeSelector.value
+    currentWorkerType = selectedType
+    const workerUri = WORKER_TYPES[selectedType]
+
+    startTimer(({ timePassed, elapsed, expected, drift, level, intervals, lag }: TimerEvent) => {
+        tickCount++
+        
+        // Send MIDI transport start on first tick
+        if (tickCount === 1 && midiOutputs.length > 0 && !midiTransportStarted) {
+            sendMidiTransportStart()
+        }
+        
+        // Send MIDI clock - 24 clocks per quarter note
+        // At current BPM/interval, send appropriate number of clocks
+        const clocksPerTick = Math.max(1, Math.round(24 * interval / 250))
+        for (let i = 0; i < clocksPerTick; i++) {
+            sendMidiClock()
+        }
+
+        // Clear empty state on first tick
+        if (tickCount === 1) {
+            feedbackTable.innerHTML = ''
+        }
+
+        const row = document.createElement('tr')
+        row.innerHTML = `
+            <td>${intervals}</td>
+            <td>${expected.toFixed(4)}</td>
+            <td>${elapsed.toFixed(4)}</td>
+            <td>${timePassed.toFixed(4)}</td>
+            <td>${drift.toFixed(4)}</td>
+            <td>${lag.toFixed(4)}</td>
+        `
+        feedbackTable.appendChild(row)
+
+        // Keep only last 100 rows for performance
+        if (feedbackTable.children.length > 100) {
+            feedbackTable.removeChild(feedbackTable.firstChild!)
+        }
+
+        lags.push(lag)
+        drifts.push(drift)
+
+        // Add single-timer data to shared chart
+        if (multiChart) {
+            multiChart.addData({
+                id: 'single-timer',
+                lag,
+                timePassed,
+                interval,
+                timestamp: Date.now(),
+                color: '#007bff'
+            })
+        }
+
+        // Update stats
+        const avgDrift = drifts.reduce((a, b) => a + b, 0) / drifts.length
+        const avgLag = lags.reduce((a, b) => a + b, 0) / lags.length
+        
+        statIntervals.textContent = intervals.toString()
+        statDrift.textContent = avgDrift.toFixed(4)
+        statLag.textContent = avgLag.toFixed(4)
+        statTicks.textContent = tickCount.toString()
+
+        // Apply drift compensation if accurate mode is enabled
+        if (accurateMode) {
+            const timer = getTimer()
+            if (timer && tickCount > 5) {
+                // Only send drift adjustment after the system has stabilized (after tick 5)
+                // The worker will apply damping (10% of drift) to gradually correct
+                timer.postMessage({
+                    command: CMD_ADJUST_DRIFT,
+                    drift: drift
+                })
+            }
+        }
+
+        console.log("Tick", { intervals, drift, lag, tickCount, accurateMode })
+    }, interval, { type: workerUri })
+})
+
+
+stopBtn.addEventListener('click', () => {
+    if (!isRunning) return
+    
+    stopTimer()
+    isRunning = false
+    
+    // Send MIDI stop
+    if (midiTransportStarted) {
+        sendMidiTransportStop()
+    }
+    
+    startBtn.disabled = false
+    stopBtn.disabled = true
+    workerTypeSelector.disabled = false
+    intervalInput.disabled = false
+    accurateModeCheckbox.disabled = false
+
+    const averageLag = lags.length > 0 ? lags.reduce((a, b) => a + b, 0) / lags.length : 0
+    const averageDrift = drifts.length > 0 ? drifts.reduce((a, b) => a + b, 0) / drifts.length : 0
+
+    console.log("Stopped with", currentWorkerType, { averageLag, averageDrift, totalTicks: tickCount, accurateMode })
+})
+
+resetBtn.addEventListener('click', () => {
+    stopTimer()
+    isRunning = false
+    
+    // Send MIDI stop
+    if (midiTransportStarted) {
+        sendMidiTransportStop()
+    }
+    
+    reset()
+    
+    startBtn.disabled = false
+    stopBtn.disabled = true
+    workerTypeSelector.disabled = false
+    intervalInput.disabled = false
+    accurateModeCheckbox.disabled = false
+})
+
+intervalInput.addEventListener('change', (event) => {
+    const newInterval = parseInt((event.target as HTMLInputElement).value)
+    interval = newInterval
+    setTimeBetween(newInterval)
+})
+
+workerTypeSelector.addEventListener('change', (event) => {
+    const selectedType = (event.target as HTMLSelectElement).value
+    currentWorkerType = selectedType
+    
+    // If timer is running, restart it with new worker type
+    if (isRunning) {
+        stopTimer()
+        isRunning = false
+        
+        // Small delay to ensure clean shutdown
+        setTimeout(() => {
+            startBtn.click()
+        }, 100)
+    }
+})
+
+bpmSlider.addEventListener('input', (event) => {
+    const newBpm = parseInt((event.target as HTMLInputElement).value)
+    bpm = newBpm
+    bpmValue.textContent = newBpm.toString()
+    
+    // Convert BPM to interval in milliseconds
+    // interval (ms) = 60,000 / BPM
+    const newInterval = 60000 / newBpm
+    intervalInput.value = newInterval.toString()
+    interval = newInterval
+    
+    // Update the timer if it's running
+    if (isRunning) {
+        setTimeBetween(newInterval)
+    }
+})
+
+// Theme Toggle
 const initTheme = () => {
     const savedTheme = localStorage.getItem('theme')
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     const isDark = savedTheme === 'dark' || (savedTheme === null && prefersDark)
-
+    
     if (isDark) {
         document.documentElement.style.colorScheme = 'dark'
         themeToggle.textContent = '☀️ Light'
@@ -89,86 +295,41 @@ const initTheme = () => {
     }
 }
 
+themeToggle.addEventListener('click', () => {
+    const currentScheme = document.documentElement.style.colorScheme
+    const isDark = currentScheme === 'dark'
+    const newScheme = isDark ? 'light' : 'dark'
+    
+    document.documentElement.style.colorScheme = newScheme
+    localStorage.setItem('theme', newScheme)
+    
+    themeToggle.textContent = isDark ? '🌙 Dark' : '☀️ Light'
+    
+    // Notify chart of theme change
+    window.dispatchEvent(new Event('colorscheme-change'))
+})
+
+initTheme()
+
+// ===== MULTI-TIMER FUNCTIONS =====
+
+// UI Elements
+const timersList = document.getElementById('timers-list')!
+const timerDetailsPanel = document.getElementById('timer-details-panel')!
+const timerDetailsContent = timerDetailsPanel.querySelector('.timer-details-content')!
+let selectedTimerId: string | null = null
+
 const initMultiChart = () => {
     if (!multiChart) {
         multiChart = new MultiTimerChart('multi-timer-chart')
     }
 }
 
-initTheme()
-
-// ===== METRONOME SOUND =====
-
-const playMetronomeBeep = (frequency: number = 880, duration: number = 100) => {
-    try {
-        // Initialize audio context if needed
-        if (!audioContext) {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
-            if (!AudioContextClass) {
-                console.warn('Web Audio API not supported in this browser')
-                return
-            }
-            audioContext = new AudioContextClass()
-            console.log('AudioContext initialized:', {
-                state: audioContext.state,
-                sampleRate: audioContext.sampleRate,
-                currentTime: audioContext.currentTime
-            })
-        }
-
-        // Resume context if suspended (required on some browsers)
-        // This happens asynchronously but we'll proceed anyway
-        if (audioContext.state === 'suspended') {
-            console.log('AudioContext is suspended, attempting to resume...')
-            audioContext.resume().then(() => {
-                console.log('AudioContext resumed successfully')
-            }).catch(err => {
-                console.error('Failed to resume audio context:', err)
-            })
-        }
-
-        const now = audioContext.currentTime
-        const oscillator = audioContext.createOscillator()
-        const gainNode = audioContext.createGain()
-
-        oscillator.connect(gainNode)
-        gainNode.connect(audioContext.destination)
-
-        oscillator.frequency.value = frequency
-        oscillator.type = 'sine'
-
-        // Attack and release envelope
-        gainNode.gain.setValueAtTime(0.3, now)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration / 1000)
-
-        oscillator.start(now)
-        oscillator.stop(now + duration / 1000)
-
-        console.log('Metronome beep played:', { frequency, duration, time: now })
-    } catch (error) {
-        console.error('Error playing metronome:', error)
-    }
-}
-
-// Function to manually test audio
-const testAudioBeep = () => {
-    playMetronomeBeep(880, 100)
-}
-
-// ===== TIMER CREATION =====
-
-const syncBpmControls = (value: number) => {
-    newTimerBpmInput.value = value.toString()
-    newTimerBpmSlider.value = value.toString()
-}
-
-// ===== UI RENDERING =====
-
 const renderTimersList = () => {
     const timers = multiTimerManager.getAllTimers()
-
+    
     if (timers.length === 0) {
-        timersList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">No timers yet. Click "Create Timer" to start.</p>'
+        timersList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">No timers yet. Click "Add Timer" to start.</p>'
         return
     }
 
@@ -185,7 +346,7 @@ const renderTimersList = () => {
                     <span class="timer-status">${timer.bpm} BPM ${running ? '▶' : '⏸'}</span>
                 </div>
                 <div class="timer-item-controls">
-                    <button class="timer-toggle" data-timer-id="${timer.id}">${running ? 'Stop' : 'Start'}</button>
+                    <button class="timer-toggle" data-timer-id="${timer.id}" ${stats?.ticks && running ? 'disabled' : ''}>${running ? 'Stop' : 'Start'}</button>
                     <button class="timer-remove" data-timer-id="${timer.id}">Remove</button>
                 </div>
             </div>
@@ -205,8 +366,8 @@ const renderTimersList = () => {
             e.stopPropagation()
             const timerId = (btn as any).dataset.timerId
             const running = runningTimers.get(timerId)?.isRunning
-            if (running) stopTimer(timerId)
-            else startTimer(timerId)
+            if (running) stopMultiTimer(timerId)
+            else startMultiTimer(timerId)
         })
     })
 
@@ -214,7 +375,7 @@ const renderTimersList = () => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation()
             const timerId = (btn as any).dataset.timerId
-            removeTimer(timerId)
+            removeMultiTimer(timerId)
         })
     })
 }
@@ -227,22 +388,6 @@ const selectTimer = (timerId: string) => {
         timerDetailsPanel.style.display = 'none'
     }
     renderTimersList()
-    }
-
-const updateTimerDetailsStats = (timerId: string, stats: { ticks: number; lags: number[]; drifts: number[] }) => {
-    // Only update if details panel is visible
-    if (timerDetailsPanel.style.display === 'none') return
-
-    const avgLag = stats.lags.length ? (stats.lags.reduce((a, b) => a + b) / stats.lags.length).toFixed(2) : '0.00'
-    const avgDrift = stats.drifts.length ? (stats.drifts.reduce((a, b) => a + b) / stats.drifts.length).toFixed(2) : '0.00'
-
-    // Update stat cards
-    const statCards = timerDetailsContent.querySelectorAll('.timer-stat-value')
-    if (statCards.length >= 4) {
-        statCards[0].textContent = `${avgLag}ms`
-        statCards[1].textContent = `${avgDrift}ms`
-        statCards[2].textContent = `${stats.ticks}`
-    }
 }
 
 const showTimerDetails = (timerId: string) => {
@@ -275,12 +420,6 @@ const showTimerDetails = (timerId: string) => {
                     <option value="setinterval" ${config.workerType === 'setinterval' ? 'selected' : ''}>SetInterval</option>
                     <option value="settimeout" ${config.workerType === 'settimeout' ? 'selected' : ''}>SetTimeout</option>
                 </select>
-            </div>
-            <div class="timer-detail-group">
-                <label>
-                    <input type="checkbox" class="timer-metronome-toggle" ${config.metronomeEnabled ? 'checked' : ''} />
-                    Metronome Sound
-                </label>
             </div>
         </div>
 
@@ -330,7 +469,6 @@ const showTimerDetails = (timerId: string) => {
     const nameInput = timerDetailsContent.querySelector('.timer-name-input') as HTMLInputElement
     const bpmInput = timerDetailsContent.querySelector('.timer-bpm-input') as HTMLInputElement
     const workerTypeSelect = timerDetailsContent.querySelector('.timer-worker-type-select') as HTMLSelectElement
-    const metronomeToggle = timerDetailsContent.querySelector('.timer-metronome-toggle') as HTMLInputElement
     const startBtn = timerDetailsContent.querySelector('.timer-detail-start') as HTMLButtonElement
     const stopBtn = timerDetailsContent.querySelector('.timer-detail-stop') as HTMLButtonElement
     const clearBtn = timerDetailsContent.querySelector('.timer-detail-clear') as HTMLButtonElement
@@ -356,19 +494,12 @@ const showTimerDetails = (timerId: string) => {
         multiTimerManager.updateTimerConfig(timerId, { workerType })
     })
 
-    metronomeToggle.addEventListener('change', (e) => {
-        const metronomeEnabled = (e.target as HTMLInputElement).checked
-        multiTimerManager.updateTimerConfig(timerId, { metronomeEnabled })
-    })
-
-    startBtn.addEventListener('click', () => startTimer(timerId))
-    stopBtn.addEventListener('click', () => stopTimer(timerId))
-    clearBtn.addEventListener('click', () => clearTimer(timerId))
+    startBtn.addEventListener('click', () => startMultiTimer(timerId))
+    stopBtn.addEventListener('click', () => stopMultiTimer(timerId))
+    clearBtn.addEventListener('click', () => clearMultiTimer(timerId))
 }
 
-// ===== TIMER CONTROL =====
-
-const startTimer = async (timerId: string) => {
+const startMultiTimer = async (timerId: string) => {
     const config = multiTimerManager.getTimer(timerId)
     if (!config) return
 
@@ -401,11 +532,6 @@ const startTimer = async (timerId: string) => {
             if (stats.lags.length > 500) stats.lags.shift()
             if (stats.drifts.length > 500) stats.drifts.shift()
 
-            // Play metronome sound if enabled
-            if (config.metronomeEnabled) {
-                playMetronomeBeep(880, 100)
-            }
-
             multiTimerManager.addData({
                 id: timerId,
                 lag,
@@ -423,11 +549,6 @@ const startTimer = async (timerId: string) => {
                 timestamp: Date.now(),
                 color: config.color
             })
-
-            // Update UI if this timer is selected
-            if (selectedTimerId === timerId) {
-                updateTimerDetailsStats(timerId, stats)
-            }
         }
 
         const startTime = Date.now()
@@ -439,9 +560,9 @@ const startTimer = async (timerId: string) => {
         })
 
         // Update config with start time and epoch
-        multiTimerManager.updateTimerConfig(timerId, {
-            startTime,
-            epoch
+        multiTimerManager.updateTimerConfig(timerId, { 
+            startTime, 
+            epoch 
         })
 
         runningTimers.set(timerId, {
@@ -451,20 +572,21 @@ const startTimer = async (timerId: string) => {
             isRunning: true
         })
 
+        isAnyMultiTimerRunning = true
         renderTimersList()
-        if (selectedTimerId === timerId) showTimerDetails(timerId)
     } catch (error) {
         console.error(`Error starting timer ${timerId}:`, error)
     }
 }
 
-const stopTimer = async (timerId: string) => {
+const stopMultiTimer = async (timerId: string) => {
     const running = runningTimers.get(timerId)
     if (!running) return
 
     try {
         await running.timer.stopTimer?.()
         running.isRunning = false
+        isAnyMultiTimerRunning = Array.from(runningTimers.values()).some(t => t.isRunning)
         renderTimersList()
         if (selectedTimerId === timerId) showTimerDetails(timerId)
     } catch (error) {
@@ -472,7 +594,7 @@ const stopTimer = async (timerId: string) => {
     }
 }
 
-const clearTimer = (timerId: string) => {
+const clearMultiTimer = (timerId: string) => {
     const running = runningTimers.get(timerId)
     if (running) {
         running.stats = {
@@ -487,10 +609,10 @@ const clearTimer = (timerId: string) => {
     if (selectedTimerId === timerId) showTimerDetails(timerId)
 }
 
-const removeTimer = async (timerId: string) => {
+const removeMultiTimer = async (timerId: string) => {
     const running = runningTimers.get(timerId)
     if (running && running.isRunning) {
-        await stopTimer(timerId)
+        await stopMultiTimer(timerId)
     }
 
     runningTimers.delete(timerId)
@@ -501,66 +623,19 @@ const removeTimer = async (timerId: string) => {
         timerDetailsPanel.style.display = 'none'
     }
     renderTimersList()
-    }
+}
 
-    newTimerBpmInput.addEventListener('change', (e) => {
-    syncBpmControls(parseInt((e.target as HTMLInputElement).value))
-})
-
-newTimerBpmSlider.addEventListener('input', (e) => {
-    syncBpmControls(parseInt((e.target as HTMLInputElement).value))
-})
-
-createTimerBtn.addEventListener('click', () => {
-    const name = newTimerNameInput.value.trim() || `Timer ${multiTimerManager.getAllTimers().length + 1}`
-    const bpm = parseInt(newTimerBpmInput.value)
-    const workerType = newTimerWorkerSelect.value
-    const metronomeEnabled = newTimerMetronomeCheckbox.checked
-
+addTimerBtn.addEventListener('click', () => {
     const timerId = multiTimerManager.addTimer({
-        bpm,
-        name,
-        workerType,
-        metronomeEnabled
+        bpm: 120,
+        name: `Timer ${multiTimerManager.getAllTimers().length + 1}`
     })
-
-    // Store options for later use
-    if (!runningTimers.has(timerId)) {
-        runningTimers.set(timerId, {
-            id: timerId,
-            timer: null,
-            stats: { ticks: 0, lags: [], drifts: [] },
-            isRunning: false
-        })
-    }
-
-    // Clear form
-    newTimerNameInput.value = ''
-    syncBpmControls(120)
-    newTimerWorkerSelect.value = 'audiocontext'
-    newTimerMetronomeCheckbox.checked = false
-
     renderTimersList()
 })
 
-// ===== THEME TOGGLE =====
+renderTimersList()
 
-themeToggle.addEventListener('click', () => {
-    const currentScheme = document.documentElement.style.colorScheme
-    const isDark = currentScheme === 'dark'
-    const newScheme = isDark ? 'light' : 'dark'
-
-    document.documentElement.style.colorScheme = newScheme
-    localStorage.setItem('theme', newScheme)
-
-    themeToggle.textContent = isDark ? '🌙 Dark' : '☀️ Light'
-
-    // Notify chart of theme change
-    window.dispatchEvent(new Event('colorscheme-change'))
-})
-
-// ===== CPU STRESS TEST =====
-
+// CPU Stress Test
 const cpuStressLoop = () => {
     if (!cpuStressEnabled) {
         cpuStressAnimationId = null
@@ -568,15 +643,18 @@ const cpuStressLoop = () => {
     }
 
     // Do computationally intensive work
+    // Calculate fibonacci numbers
     const fib = (n: number): number => {
         if (n <= 1) return n
         return fib(n - 1) + fib(n - 2)
     }
 
+    // Do this multiple times to stress the CPU
     for (let i = 0; i < 100; i++) {
         fib(15)
     }
 
+    // Also do some matrix operations
     const matrix = Array(100).fill(0).map(() => Array(100).fill(Math.random()))
     for (let i = 0; i < matrix.length; i++) {
         for (let j = 0; j < matrix[i].length; j++) {
@@ -584,12 +662,13 @@ const cpuStressLoop = () => {
         }
     }
 
+    // Schedule next iteration
     cpuStressAnimationId = requestAnimationFrame(cpuStressLoop)
 }
 
-newTimerCpuStressCheckbox.addEventListener('change', (event) => {
+cpuStressCheckbox.addEventListener('change', (event) => {
     cpuStressEnabled = (event.target as HTMLInputElement).checked
-
+    
     if (cpuStressEnabled) {
         cpuStressAnimationId = requestAnimationFrame(cpuStressLoop)
     } else if (cpuStressAnimationId !== null) {
@@ -598,11 +677,10 @@ newTimerCpuStressCheckbox.addEventListener('change', (event) => {
     }
 })
 
-// ===== MIDI SUPPORT =====
-
+// MIDI Support
 const sendMidiClock = () => {
     if (midiOutputs.length === 0) return
-
+    
     const clockMessage = new Uint8Array([0xF8]) // Timing Clock
     for (const output of midiOutputs) {
         output.send(clockMessage)
@@ -611,48 +689,52 @@ const sendMidiClock = () => {
 
 const sendMidiTransportStart = () => {
     if (midiOutputs.length === 0) return
-
+    
     const startMessage = new Uint8Array([0xFA]) // Transport Start
     for (const output of midiOutputs) {
         output.send(startMessage)
     }
+    midiTransportStarted = true
+    midiClockCounter = 0
 }
 
 const sendMidiTransportStop = () => {
     if (midiOutputs.length === 0) return
-
+    
     const stopMessage = new Uint8Array([0xFC]) // Transport Stop
     for (const output of midiOutputs) {
         output.send(stopMessage)
     }
+    midiTransportStarted = false
 }
 
-newTimerMidiCheckbox.addEventListener('change', async (event) => {
-    if (!(event.target as HTMLInputElement).checked) return
-
+midiConnectBtn.addEventListener('click', async () => {
     try {
         const midiAccess = await (navigator as any).requestMIDIAccess()
         const outputs = midiAccess.outputs.values()
-
+        
         midiOutputs = []
         for (const output of outputs) {
             midiOutputs.push(output)
         }
-
+        
         if (midiOutputs.length > 0) {
-            console.log(`Connected to ${midiOutputs.length} MIDI devices`)
+            midiConnectBtn.textContent = `Connected to ${midiOutputs.length} MIDI device${midiOutputs.length !== 1 ? 's' : ''}`
+            midiConnectBtn.style.background = '#28a745'
+            console.log(`Connected to ${midiOutputs.length} MIDI devices:`, midiOutputs.map(o => o.name).join(', '))
+            
+            // Start MIDI transport if timer is already running
+            if (isRunning) {
+                sendMidiTransportStart()
+            }
         } else {
             console.log('No MIDI outputs found')
+            midiConnectBtn.textContent = 'No MIDI Devices Found'
+            midiConnectBtn.style.background = '#ffc107'
         }
     } catch (error) {
         console.error('MIDI access denied:', error)
-        newTimerMidiCheckbox.checked = false
+        midiConnectBtn.textContent = 'MIDI Not Supported'
+        midiConnectBtn.style.background = '#dc3545'
     }
 })
-
-// ===== INITIAL RENDER =====
-
-renderTimersList()
-
-// Expose debug function globally
-(window as any).testAudioBeep = testAudioBeep
