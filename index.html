@@ -30,122 +30,85 @@
       </div>
     </div>
 
-    <!-- Control Panel -->
-    <div class="panel">
-      <div class="panel-title">Controls</div>
-
-      <div class="controls-grid">
-
-        <fieldset class="control-group">
-          <legend>Technique</legend>
-          <p>
-            Spectre changed how browsers approach accurate timing
-          </p>
-          <label for="worker-type">Worker Type</label>
-          <select id="worker-type">
-            <option value="audiocontext">Audio Context Worker</option>
-            <option value="audioworklet">Audio Worklet</option>
-            <option value="audioworklet_processor">Audio Worklet Processor</option>
-            <option value="rolling">Rolling Worker</option>
-            <option value="setinterval">SetInterval Worker</option>
-            <option value="settimeout">SetTimeout Worker</option>
-          </select>
-        </fieldset>
-
-        <fieldset class="tempo-fieldset">
-          <legend>Tempo</legend>
-          <div class="tempo-controls">
-            <div class="control-group">
-              <label for="interval">Interval (ms)</label>
-              <input id="interval" type="number" value="250" min="10" max="5000" />
-            </div>
-
-            <div class="control-group">
-              <label for="bpm">BPM: <span id="bpm-value">120</span></label>
-              <input id="bpm" type="range" value="120" min="20" max="300" step="1" />
-            </div>
-          </div>
-        </fieldset>
-
-         <fieldset class="control-group">
-          
-          <legend>Modes</legend>
-
-          <label for="accurate-mode">
-            <input id="accurate-mode" type="checkbox" />
-            Accurate Mode (drift compensation)
-          </label> 
-
-          <label for="cpu-stress">
-            <input id="cpu-stress" type="checkbox" />
-            CPU Stress Test
-          </label>
-
-        </fieldset>
-
-      </div>
-
-      <div class="button-group">
-        <button id="start">Start</button>
-        <button id="stop" disabled>Stop</button>
-        <button id="reset">Reset</button>
-        <button id="midi-connect">Connect MIDI</button>
-      </div>
-    </div>
-
-    <!-- Performance Chart -->
+    <!-- Shared Performance Chart (Top) -->
     <div class="panel">
       <div class="panel-title">Performance Monitor</div>
       <div class="chart-container">
-        <canvas id="performance-chart"></canvas>
+        <canvas id="multi-timer-chart"></canvas>
       </div>
     </div>
 
-    <!-- Statistics Panel -->
+    <!-- Timer Creation Panel -->
     <div class="panel">
-      <div class="panel-title">Statistics</div>
-      <div class="stats">
-        <div class="stat-card">
-          <div class="stat-label">Current Interval</div>
-          <div class="stat-value"><span id="stat-intervals">0</span></div>
+      <div class="panel-title">Create Timer</div>
+      <div class="timer-creation-form">
+        <div class="timer-creation-row">
+          <div class="form-group">
+            <label for="new-timer-name">Timer Name</label>
+            <input id="new-timer-name" type="text" placeholder="e.g., Kick Drum, Snare..." />
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Average Drift (ms)</div>
-          <div class="stat-value"><span id="stat-drift">0</span></div>
+
+        <div class="timer-creation-row">
+          <div class="form-group">
+            <label for="new-timer-bpm">Tempo (BPM)</label>
+            <input id="new-timer-bpm" type="number" value="120" min="20" max="300" />
+          </div>
+
+          <div class="form-group">
+            <label for="new-timer-bpm-slider">BPM Slider</label>
+            <input id="new-timer-bpm-slider" type="range" value="120" min="20" max="300" step="1" />
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Average Lag (ms)</div>
-          <div class="stat-value"><span id="stat-lag">0</span></div>
+
+        <div class="timer-creation-row">
+          <div class="form-group">
+            <label for="new-timer-worker">Worker Type</label>
+            <select id="new-timer-worker">
+              <option value="audiocontext">Audio Context</option>
+              <option value="audioworklet">Audio Worklet</option>
+              <option value="audioworklet_processor">Audio Worklet Processor</option>
+              <option value="rolling">Rolling</option>
+              <option value="setinterval">SetInterval</option>
+              <option value="settimeout">SetTimeout</option>
+            </select>
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Total Ticks</div>
-          <div class="stat-value"><span id="stat-ticks">0</span></div>
+
+        <div class="timer-creation-row">
+          <label for="new-timer-accurate">
+            <input id="new-timer-accurate" type="checkbox" />
+            Accurate Mode (drift compensation)
+          </label>
+          <label for="new-timer-metronome">
+            <input id="new-timer-metronome" type="checkbox" />
+            Metronome Sound
+          </label>
+          <label for="new-timer-cpu-stress">
+            <input id="new-timer-cpu-stress" type="checkbox" />
+            CPU Stress Test
+          </label>
+          <label for="new-timer-midi">
+            <input id="new-timer-midi" type="checkbox" />
+            MIDI Connect
+          </label>
+        </div>
+
+        <div class="button-group">
+          <button id="create-timer">+ Create Timer</button>
         </div>
       </div>
     </div>
 
-    <!-- Data Table -->
+    <!-- Active Timers List -->
     <div class="panel">
-      <div class="panel-title">Timing Data</div>
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Intervals</th>
-              <th>Expected (s)</th>
-              <th>Elapsed (s)</th>
-              <th>Time Passed (s)</th>
-              <th>Drift (ms)</th>
-              <th>Lag (ms)</th>
-            </tr>
-          </thead>
-          <tbody id="feedback">
-            <tr class="empty-state">
-              <td colspan="6">Click Start to begin collecting timing data</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <div class="panel-title">Active Timers</div>
+      <div id="timers-list" class="timers-list"></div>
+    </div>
+
+    <!-- Multi-Timer Expanded Details -->
+    <div id="timer-details-panel" class="timer-details-panel" style="display: none;">
+      <div class="timer-details-content"></div>
     </div>
   </main>
 

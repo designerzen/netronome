@@ -23,8 +23,9 @@
     "vitest": "^4.0.18"
   },
   "scripts": {
+    "start": "pnpm run dev",
     "dev": "vite",
-    "dev:secure": "HTTPS=true npm run dev",
+    "dev:secure": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
