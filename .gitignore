@@ -20,6 +20,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+*.md
+!readme.md
+
 # IDE
 .vscode/
 .idea/
