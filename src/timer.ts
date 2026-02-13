@@ -8,7 +8,8 @@ import {
     EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 } from './timer-event-types'
 
-import { AudioContextWorkerWrapper, TimingWorkletNode, createTimingWorklet } from './timer-worker-types'
+import { AudioContextWorkerWrapper, TimingWorkletNode, createTimingWorklet, RollingTimeWorkerWrapper, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper } from './timer-worker-types'
+import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, TIMER_TYPES, isValidTimerType, type TimerType } from './timer-types'
 
 import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
@@ -17,6 +18,17 @@ import { WorkerWrapper } from './vite-env'
 import Epoch from './epoch'
 
 export const MAX_BARS_ALLOWED = 32
+
+/**
+ * Timer method signatures for type checking
+ */
+export interface ITimerControl {
+    /**
+     * Switch the timer to a different worker/worklet type
+     * Safely handles switching even if timer is running
+     */
+    switchTimerType(timerType: TimerType | string, audioContext?: AudioContext): Promise<boolean>
+}
 
 export interface TimerOptions {
     bars?: number
@@ -72,20 +84,52 @@ const DEFAULT_TIMER_OPTIONS: TimerOptions = {
 }
 
 /**
+ * Resolve a timer type string to its corresponding Worker constructor
+ * @param timerType Timer type ID string (e.g., TIMER_TYPE_AUDIO_CONTEXT)
+ * @returns Worker constructor or null if not found
+ * @example
+ * const workerClass = resolveTimerType(TIMER_TYPE_AUDIO_CONTEXT)
+ */
+export const resolveTimerType = (timerType: TimerType | string): WorkerWrapper | null => {
+    if (!isValidTimerType(timerType)) {
+        return null
+    }
+
+    switch (timerType) {
+        case TIMER_TYPE_AUDIO_CONTEXT:
+            return AudioContextWorkerWrapper
+        case TIMER_TYPE_ROLLING:
+            return RollingTimeWorkerWrapper
+        case TIMER_TYPE_SET_INTERVAL:
+            return SetIntervalWorkerWrapper
+        case TIMER_TYPE_SET_TIMEOUT:
+            return SetTimeoutWorkerWrapper
+        case TIMER_TYPE_AUDIO_WORKLET:
+            // Audio worklet is handled specially, return null here
+            return null
+        default:
+            return null
+    }
+}
+
+/**
  * Simple boolean test to work out if this is a Worklet
  * or a simple Worker file (not very smart - may break in future)
  * @param file
  * @returns boolean indicating if file is a worklet
  */
-export const isFileWorklet = (file: string): boolean => {
+export const isFileWorklet = (file: string | TimerType): boolean => {
 
     if (typeof file === "function") {
         return false
     }
-    if (file.indexOf("orklet") > -1) {
+    if (typeof file === 'string' && file === TIMER_TYPE_AUDIO_WORKLET) {
         return true
     }
-    if (file.indexOf("data:text/javascript;base64,") > -1) {
+    if (typeof file === 'string' && file.indexOf("orklet") > -1) {
+        return true
+    }
+    if (typeof file === 'string' && file.indexOf("data:text/javascript;base64,") > -1) {
         return true
     }
     return false
@@ -563,6 +607,15 @@ export default class Timer {
         }
 
         try {
+            // Check if type is a valid timer type string
+            if (isValidTimerType(type) && type !== TIMER_TYPE_AUDIO_WORKLET) {
+                // If it's a valid worker type (not worklet), delegate to setTimingWorker
+                const workerClass = resolveTimerType(type as TimerType)
+                if (workerClass) {
+                    return await this.setTimingWorker(workerClass)
+                }
+            }
+
             // Dynamically import the worklet based on type parameter
             const imports = await import('./worklets/timing.audioworklet.js')
             const { createTimingWorklet } = imports
@@ -630,7 +683,7 @@ export default class Timer {
      * and at that point, we can finally tie in the actual timing by using the 
      * context as the global clock!
      * NB. We NOW CAN! User the setTimingWorklet instead :)
-     * @param type URL or identifier
+     * @param type URL, identifier, or timer type string constant
      * @returns the worker instance or null if failed
      */
     async setTimingWorker(type: string | WorkerWrapper): Promise<Worker | null> {
@@ -643,7 +696,16 @@ export default class Timer {
                 await this.unsetTimingWorker()
             }
 
-            this.timingWorkHandler = await this.loadTimingWorker(type)
+            // Resolve timer type string to worker class if needed
+            let workerType: string | WorkerWrapper = type
+            if (typeof type === 'string' && isValidTimerType(type)) {
+                const resolved = resolveTimerType(type as TimerType)
+                if (resolved) {
+                    workerType = resolved
+                }
+            }
+
+            this.timingWorkHandler = await this.loadTimingWorker(workerType)
 
             if (!this.timingWorkHandler) {
                 throw Error("Timing Worker failed to load url: type:" + type)
@@ -684,6 +746,58 @@ export default class Timer {
         }
         this.timingWorkHandler = null
         return true
+    }
+
+    /**
+     * Switch to a different timing worker/worklet type
+     * Safely handles switching even if the timer is currently running
+     * @param timerType Timer type string constant (e.g., TIMER_TYPE_AUDIO_CONTEXT)
+     * @param audioContext Optional AudioContext for worklet types
+     * @returns Success status
+     * @throws Error if the timer type is invalid or switching fails
+     */
+    async switchTimerType(timerType: TimerType | string, audioContext?: AudioContext): Promise<boolean> {
+        try {
+            // Validate the timer type
+            if (!isValidTimerType(timerType)) {
+                throw new Error(`Invalid timer type: ${timerType}. Must be one of: ${Object.values(TIMER_TYPES).join(', ')}`)
+            }
+
+            const wasRunning = this.#running
+            console.info(`Switching timer type from current to ${timerType} (was running: ${wasRunning})`)
+
+            // Stop the timer if it's running
+            if (wasRunning) {
+                await this.stopTimer()
+            }
+
+            // Switch to the new timer type
+            if (timerType === TIMER_TYPE_AUDIO_WORKLET) {
+                // Audio worklet requires special handling
+                if (!audioContext) {
+                    throw new Error('AudioContext is required when switching to audio-worklet timer type')
+                }
+                await this.setTimingWorklet(timerType, '', audioContext)
+            } else {
+                // Regular workers
+                await this.setTimingWorker(timerType)
+            }
+
+            // Restart the timer if it was running before
+            if (wasRunning) {
+                await this.startTimer()
+                console.info(`Timer resumed with new type: ${timerType}`)
+            } else {
+                console.info(`Timer type switched to ${timerType}`)
+            }
+
+            return true
+
+        } catch (error) {
+            console.error(`Failed to switch timer type to ${timerType}:`, error)
+            this.isCompatible = false
+            throw error
+        }
     }
 
     // SHARED WORKER / WORKLET CDE ------------------------------------------------------------------------------------
@@ -1079,3 +1193,17 @@ export default class Timer {
         })
     }
 }
+
+
+// Re-export timer types for external use
+export {
+    TIMER_TYPE_AUDIO_CONTEXT,
+    TIMER_TYPE_AUDIO_WORKLET,
+    TIMER_TYPE_ROLLING,
+    TIMER_TYPE_SET_INTERVAL,
+    TIMER_TYPE_SET_TIMEOUT,
+    TIMER_TYPES,
+    isValidTimerType,
+    getTimerTypeDescription,
+    type TimerType,
+} from './timer-types'

@@ -6,3 +6,16 @@ export { default as SetIntervalWorkerWrapper } from './workers/timing.setinterva
 export { default as SetTimeoutWorkerWrapper } from './workers/timing.settimeout.worker.ts?worker'
 
 export { default as TimingWorkletNode, createTimingWorklet } from './worklets/timing.audioworklet'
+
+// Export timer type constants for convenient access
+export {
+    TIMER_TYPE_AUDIO_CONTEXT,
+    TIMER_TYPE_AUDIO_WORKLET,
+    TIMER_TYPE_ROLLING,
+    TIMER_TYPE_SET_INTERVAL,
+    TIMER_TYPE_SET_TIMEOUT,
+    TIMER_TYPES,
+    isValidTimerType,
+    getTimerTypeDescription,
+    type TimerType,
+} from './timer-types'
