@@ -1,11 +1,20 @@
 {
   "name": "netronome",
   "version": "2.1.0",
-  "private": true,
   "description": "rock solid js timing experiments",
   "main": "dist/index.js",
   "module": "dist/index.es.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.es.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "repository": "https://github.com/designerzen/netronome.git",
   "author": "designerzen",
   "license": "MIT",

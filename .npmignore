@@ -1,0 +1,27 @@
+# Source files
+src/
+tests/
+.github/
+public/
+
+# Config files
+vite.config.ts
+vitest.config.ts
+tsconfig.json
+.nvmrc
+
+# Documentation
+*.md
+!LICENSE
+
+# Dev dependencies
+node_modules/
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+dist/sourcemap.map
