@@ -3,7 +3,7 @@
  * Manages UI and orchestrates multiple timers with shared chart
  */
 
-import { createTimer } from '../src/timer.ts'
+import { createTimer } from '../src/timer-global.ts'
 import {
     AudioContextWorkerWrapper,
     TimingWorkletNode,

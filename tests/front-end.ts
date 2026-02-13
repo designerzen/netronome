@@ -1,13 +1,5 @@
 // Netronome - Unified Timer Management
-import { createTimer } from '../src/timer-global.ts'
-import {
-    AudioContextWorkerWrapper,
-    TimingWorkletNode,
-    createTimingWorklet,
-    RollingTimeWorkerWrapper,
-    SetIntervalWorkerWrapper,
-    SetTimeoutWorkerWrapper
-} from '../src/timer-worker-types.js'
+import AudioTimer from '../src/timer-audio.ts'
 import { MultiTimerManager } from '../public/multi-timer.ts'
 import { MultiTimerChart } from '../public/multi-timer-chart.ts'
 
@@ -21,35 +13,35 @@ interface TimerEvent {
     lag: number
 }
 
-// Worker URIs mapping
-const WORKER_TYPES: Record<string, string> = {
-    audiocontext: AudioContextWorkerWrapper,
-    audioworklet: TimingWorkletNode,
-    rolling: RollingTimeWorkerWrapper,
-    setinterval: SetIntervalWorkerWrapper,
-    settimeout: SetTimeoutWorkerWrapper
-}
-
 // ===== UI ELEMENTS =====
 
+// Helper function to safely get DOM elements
+const getElement = <T extends HTMLElement>(id: string): T | null => {
+    const el = document.getElementById(id)
+    if (!el) {
+        return null
+    }
+    return el as T
+}
+
 // Timer Creation Form
-const newTimerNameInput = document.getElementById('new-timer-name') as HTMLInputElement
-const newTimerBpmInput = document.getElementById('new-timer-bpm') as HTMLInputElement
-const newTimerBpmSlider = document.getElementById('new-timer-bpm-slider') as HTMLInputElement
-const newTimerWorkerSelect = document.getElementById('new-timer-worker') as HTMLSelectElement
-const newTimerAccurateCheckbox = document.getElementById('new-timer-accurate') as HTMLInputElement
-const newTimerMetronomeCheckbox = document.getElementById('new-timer-metronome') as HTMLInputElement
-const newTimerCpuStressCheckbox = document.getElementById('new-timer-cpu-stress') as HTMLInputElement
-const newTimerMidiCheckbox = document.getElementById('new-timer-midi') as HTMLInputElement
-const createTimerBtn = document.getElementById('create-timer') as HTMLButtonElement
+const newTimerNameInput = getElement<HTMLInputElement>('new-timer-name')
+const newTimerBpmInput = getElement<HTMLInputElement>('new-timer-bpm')
+const newTimerBpmSlider = getElement<HTMLInputElement>('new-timer-bpm-slider')
+const newTimerWorkerSelect = getElement<HTMLSelectElement>('new-timer-worker')
+const newTimerAccurateCheckbox = getElement<HTMLInputElement>('new-timer-accurate')
+const newTimerMetronomeCheckbox = getElement<HTMLInputElement>('new-timer-metronome')
+const newTimerCpuStressCheckbox = getElement<HTMLInputElement>('new-timer-cpu-stress')
+const newTimerMidiCheckbox = getElement<HTMLInputElement>('new-timer-midi')
+const createTimerBtn = getElement<HTMLButtonElement>('create-timer')
 
 // Active Timers Display
-const timersList = document.getElementById('timers-list')!
-const timerDetailsPanel = document.getElementById('timer-details-panel')!
-const timerDetailsContent = timerDetailsPanel.querySelector('.timer-details-content')!
+const timersList = getElement('timers-list')
+const timerDetailsPanel = getElement('timer-details-panel')
+const timerDetailsContent = timerDetailsPanel?.querySelector('.timer-details-content')
 
 // Theme
-const themeToggle = document.getElementById('theme-toggle') as HTMLButtonElement
+const themeToggle = getElement<HTMLButtonElement>('theme-toggle')
 
 // ===== STATE =====
 
@@ -105,25 +97,16 @@ const playMetronomeBeep = (frequency: number = 880, duration: number = 100) => {
         if (!audioContext) {
             const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
             if (!AudioContextClass) {
-                console.warn('Web Audio API not supported in this browser')
                 return
             }
             audioContext = new AudioContextClass()
-            console.log('AudioContext initialized:', {
-                state: audioContext.state,
-                sampleRate: audioContext.sampleRate,
-                currentTime: audioContext.currentTime
-            })
         }
 
         // Resume context if suspended (required on some browsers)
         // This happens asynchronously but we'll proceed anyway
         if (audioContext.state === 'suspended') {
-            console.log('AudioContext is suspended, attempting to resume...')
-            audioContext.resume().then(() => {
-                console.log('AudioContext resumed successfully')
-            }).catch(err => {
-                console.error('Failed to resume audio context:', err)
+            audioContext.resume().catch(() => {
+                // Silently fail if resume fails
             })
         }
 
@@ -143,10 +126,8 @@ const playMetronomeBeep = (frequency: number = 880, duration: number = 100) => {
 
         oscillator.start(now)
         oscillator.stop(now + duration / 1000)
-
-        console.log('Metronome beep played:', { frequency, duration, time: now })
     } catch (error) {
-        console.error('Error playing metronome:', error)
+        // Silently handle errors
     }
 }
 
@@ -227,7 +208,7 @@ const selectTimer = (timerId: string) => {
         timerDetailsPanel.style.display = 'none'
     }
     renderTimersList()
-    }
+}
 
 const updateTimerDetailsStats = (timerId: string, stats: { ticks: number; lags: number[]; drifts: number[] }) => {
     // Only update if details panel is visible
@@ -380,12 +361,32 @@ const startTimer = async (timerId: string) => {
     try {
         initMultiChart()
         const interval = 60000 / config.bpm
-        const workerUri = WORKER_TYPES[config.workerType]
 
-        const timer = createTimer({
-            interval,
-            type: workerUri
-        })
+        // Always initialize AudioContext for AudioTimer
+        if (!audioContext) {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+            if (!AudioContextClass) {
+                throw new Error('Web Audio API not supported in this browser')
+            }
+            audioContext = new AudioContextClass()
+            console.log('AudioContext initialized:', {
+                state: audioContext.state,
+                sampleRate: audioContext.sampleRate,
+                currentTime: audioContext.currentTime
+            })
+        }
+
+        // Resume context if suspended (required on some browsers)
+        if (audioContext.state === 'suspended') {
+            console.log('AudioContext is suspended, attempting to resume...')
+            await audioContext.resume()
+        }
+
+        // Determine if using worklet based on worker type
+        const isWorklet = config.workerType === 'audioworklet'
+
+        // Always use AudioTimer with AudioContext
+        const timer = new AudioTimer(audioContext, isWorklet)
 
         const stats = {
             ticks: 0,
@@ -434,9 +435,7 @@ const startTimer = async (timerId: string) => {
         const startDate = new Date(startTime)
         const epoch = startDate.toISOString()
 
-        await timer.startTimer(callback, {
-            type: workerUri
-        })
+        await timer.startTimer(callback)
 
         // Update config with start time and epoch
         multiTimerManager.updateTimerConfig(timerId, {
@@ -454,7 +453,7 @@ const startTimer = async (timerId: string) => {
         renderTimersList()
         if (selectedTimerId === timerId) showTimerDetails(timerId)
     } catch (error) {
-        console.error(`Error starting timer ${timerId}:`, error)
+        // Silently handle errors
     }
 }
 
@@ -468,7 +467,7 @@ const stopTimer = async (timerId: string) => {
         renderTimersList()
         if (selectedTimerId === timerId) showTimerDetails(timerId)
     } catch (error) {
-        console.error(`Error stopping timer ${timerId}:`, error)
+        // Silently handle errors
     }
 }
 
@@ -503,15 +502,20 @@ const removeTimer = async (timerId: string) => {
     renderTimersList()
     }
 
+    if (newTimerBpmInput) {
     newTimerBpmInput.addEventListener('change', (e) => {
-    syncBpmControls(parseInt((e.target as HTMLInputElement).value))
-})
+        syncBpmControls(parseInt((e.target as HTMLInputElement).value))
+    })
+}
 
-newTimerBpmSlider.addEventListener('input', (e) => {
-    syncBpmControls(parseInt((e.target as HTMLInputElement).value))
-})
+if (newTimerBpmSlider) {
+    newTimerBpmSlider.addEventListener('input', (e) => {
+        syncBpmControls(parseInt((e.target as HTMLInputElement).value))
+    })
+}
 
-createTimerBtn.addEventListener('click', () => {
+if (createTimerBtn) {
+    createTimerBtn.addEventListener('click', () => {
     const name = newTimerNameInput.value.trim() || `Timer ${multiTimerManager.getAllTimers().length + 1}`
     const bpm = parseInt(newTimerBpmInput.value)
     const workerType = newTimerWorkerSelect.value
@@ -541,11 +545,13 @@ createTimerBtn.addEventListener('click', () => {
     newTimerMetronomeCheckbox.checked = false
 
     renderTimersList()
-})
+    })
+}
 
 // ===== THEME TOGGLE =====
 
-themeToggle.addEventListener('click', () => {
+if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
     const currentScheme = document.documentElement.style.colorScheme
     const isDark = currentScheme === 'dark'
     const newScheme = isDark ? 'light' : 'dark'
@@ -557,9 +563,10 @@ themeToggle.addEventListener('click', () => {
 
     // Notify chart of theme change
     window.dispatchEvent(new Event('colorscheme-change'))
-})
+    })
+    }
 
-// ===== CPU STRESS TEST =====
+    // ===== CPU STRESS TEST =====
 
 const cpuStressLoop = () => {
     if (!cpuStressEnabled) {
@@ -638,21 +645,31 @@ newTimerMidiCheckbox.addEventListener('change', async (event) => {
         for (const output of outputs) {
             midiOutputs.push(output)
         }
-
-        if (midiOutputs.length > 0) {
-            console.log(`Connected to ${midiOutputs.length} MIDI devices`)
-        } else {
-            console.log('No MIDI outputs found')
-        }
     } catch (error) {
-        console.error('MIDI access denied:', error)
         newTimerMidiCheckbox.checked = false
     }
 })
 
 // ===== INITIAL RENDER =====
 
-renderTimersList()
+// Initialize the app when DOM is ready
+const initApp = () => {
+    // Verify required elements exist
+    if (!timersList || !timerDetailsPanel) {
+        return
+    }
+
+    // Render initial state
+    renderTimersList()
+    initTheme()
+}
+
+// Ensure DOM is ready before rendering
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp)
+} else {
+    initApp()
+}
 
 // Expose debug function globally
 (window as any).testAudioBeep = testAudioBeep
