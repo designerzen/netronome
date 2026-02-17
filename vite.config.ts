@@ -20,12 +20,14 @@ export default defineConfig({
       output: [
         {
           format: 'es',
-          entryFileNames: 'index.es.js'
+          entryFileNames: 'index.es.js',
+          chunkFileNames: '[name].js'
         },
         {
           format: 'umd',
           name: 'Netronome',
-          entryFileNames: 'index.js'
+          entryFileNames: 'index.js',
+          chunkFileNames: '[name].js'
         }
       ]
     }
