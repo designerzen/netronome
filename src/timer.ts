@@ -16,72 +16,14 @@ import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils
 import { WorkerWrapper } from './vite-env'
 
 import Epoch from './epoch'
+import { TimerOptions, DEFAULT_TIMER_OPTIONS } from './timer-options'
+import { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces'
 
 export const MAX_BARS_ALLOWED = 32
 
-/**
- * Timer method signatures for type checking
- */
-export interface ITimerControl {
-    /**
-     * Switch the timer to a different worker/worklet type
-     * Safely handles switching even if timer is running
-     */
-    switchTimerType(timerType: TimerType | string, audioContext?: AudioContext): Promise<boolean>
-}
+// Re-export interfaces for external use
+export type { ITimerControl, TimingHandler, TimerCallbackEvent }
 
-export interface TimerOptions {
-    bars?: number
-    divisions?: number
-    bpm?: number
-    accurate?:boolean
-    contexts?: Record<string, unknown> | null
-    type?: string|WorkerWrapper
-    processor?: string
-    callback?: ((event: TimerCallbackEvent) => void) | null
-    audioContext?: AudioContext
-    synch?: boolean
-}
-
-type TimingHandler = Worker | AudioWorkletNode | null
-
-interface TimerCallbackEvent {
-    bar: number
-    bars: number
-    divisionsElapsed: number
-    barsElapsed: number
-    elapsed: number
-    timePassed: number
-    expected: number
-    drift: number
-    level: number
-    intervals: number
-    lag: number
-}
-
-const DEFAULT_TIMER_OPTIONS: TimerOptions = {
-    
-    accurate:false,
-
-    bars: 16,
-    
-    // keep this at 24 to match MIDI1.0 spec
-    // where there are 24 ticks per quarternote (one beat)
-    divisions: 24,
-
-    bpm: 90,
-
-    contexts: null,
-
-    // can be base64 encoded too
-    type: AudioContextWorkerWrapper,
-    // type:AUDIOTIMER_WORKLET_URI,
-    // processor:AUDIOTIMER_PROCESSOR_URI,
-
-    callback: null,
-
-    synch: true
-}
 
 /**
  * Resolve a timer type string to its corresponding Worker constructor

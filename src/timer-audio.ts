@@ -4,13 +4,7 @@ import {
 	AudioContextWorkerWrapper,
 	createTimingWorklet
 } from './timer-worker-types'
-
-interface AudioTimerOptions {
-	divisions: number
-	type?: string | any
-	processor?: string
-	audioContext?: AudioContext
-}
+import type { AudioTimerOptions } from './timer-interfaces'
 
 const DEFAULT_AUDIO_TIMER_OPTIONS: AudioTimerOptions = {
 

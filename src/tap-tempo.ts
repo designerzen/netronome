@@ -1,3 +1,4 @@
+import type { TapTempoResult } from './timer-interfaces'
 
 /**
  * TODO: Implement lienar regression like nayuki
@@ -30,25 +31,12 @@ export const tapTempoQuick = (autoReset: boolean = true, timeOut: number = TAP_T
    
     if (quantity >= minimumTaps) 
     {
-        // const tempo = 60000 * x / y
-        const period = y / x
-        return period
-    }
-    return -1
-}
-
-interface TapTempoResult {
-    available: boolean
-    bar: string | number
-    period: number
-    accuratePeriod: number
-    beat: string | number
-    samples: number
-    timeInSeconds: number
-    tempo: number
-    bpm: number
-    deviation: number
-}
+         // const tempo = 60000 * x / y
+         const period = y / x
+         return period
+     }
+     return -1
+ }
 
 export const tapTempo = (autoReset: boolean = true, timeOut: number = TAP_TIMEOUT, minimumTaps: number = MINIMUM_TEMPOS) => {
 
