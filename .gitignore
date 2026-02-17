@@ -5,9 +5,6 @@ yarn.lock
 # pnpm lock file - UNCOMMENT AFTER FIRST pnpm INSTALL
 # pnpm-lock.yaml
 
-# Build output
-dist/
-build/
 
 # Development
 .DS_Store
