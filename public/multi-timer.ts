@@ -51,7 +51,8 @@ export class MultiTimerManager {
             bpm: config.bpm || 120,
             name: config.name || `Timer ${this.timers.size + 1}`,
             workerType: config.workerType || 'audiocontext',
-            color
+            color,
+            metronomeEnabled: config.metronomeEnabled || false
         }
 
         this.timers.set(id, timerConfig)

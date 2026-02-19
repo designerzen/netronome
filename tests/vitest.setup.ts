@@ -57,3 +57,16 @@ if (typeof AudioContext === 'undefined' && typeof webkitAudioContext === 'undefi
     }
   } as any
 }
+
+// Mock AudioWorkletNode
+if (typeof AudioWorkletNode === 'undefined') {
+  global.AudioWorkletNode = class MockAudioWorkletNode {
+    port = { postMessage: () => {} }
+    
+    constructor(
+      public context: AudioContext,
+      public name: string,
+      public options?: any
+    ) {}
+  } as any
+}

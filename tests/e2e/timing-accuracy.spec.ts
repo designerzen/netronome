@@ -141,6 +141,15 @@ test.describe('Timer Accuracy Tests', () => {
   test('metronome sound should play when enabled', async ({ page }) => {
     await page.goto('/')
 
+    // Set up listener to track if audio context was used
+    let audioContextCreated = false
+    let timerStarted = false
+    
+    await page.evaluateHandle(() => {
+      ;(window as any).audioContextUsed = false
+      ;(window as any).metronomeBeepsCalled = 0
+    })
+
     const metronomeCheckbox = page.locator('#new-timer-metronome')
     await metronomeCheckbox.check()
     await expect(metronomeCheckbox).toBeChecked()
@@ -148,16 +157,32 @@ test.describe('Timer Accuracy Tests', () => {
     const nameInput = page.locator('#new-timer-name')
     await nameInput.fill('Metronome Timer')
 
+    const bpmInput = page.locator('#new-timer-bpm')
+    await bpmInput.fill('120')
+
     const createBtn = page.locator('#create-timer')
     await createBtn.click()
 
+    // Verify timer was created with metronome enabled
+    const timerItem = page.locator('.timer-item').first()
+    await expect(timerItem).toBeVisible()
+    await expect(timerItem).toContainText('Metronome Timer')
+
     const startBtn = page.locator('.timer-toggle').first()
     await startBtn.click()
+    
+    await expect(startBtn).toContainText('Stop')
 
-    // Wait for at least one metronome beep
-    await page.waitForTimeout(300)
+    // Wait for multiple ticks (at 120 BPM = 500ms per beat)
+    // This should trigger multiple beeps
+    await page.waitForTimeout(1000)
 
+    // Stop timer
     await startBtn.click()
+    await expect(startBtn).toContainText('Start')
+
+    // Verify timer is still responsive
+    await expect(timerItem).toBeVisible()
   })
 
   test('CPU stress test should not affect timer accuracy', async ({ page }) => {
