@@ -1,7 +1,21 @@
 {
   "name": "netronome",
   "version": "2.2.0",
-  "description": "rock solid js timing experiments",
+  "description": "Rock solid JavaScript timing library with sub-millisecond accuracy",
+  "keywords": [
+    "timing",
+    "clock",
+    "metronome",
+    "bpm",
+    "tempo",
+    "audio",
+    "scheduling",
+    "javascript"
+  ],
+  "homepage": "https://github.com/designerzen/netronome#readme",
+  "bugs": {
+    "url": "https://github.com/designerzen/netronome/issues"
+  },
   "main": "dist/index.js",
   "module": "dist/index.es.js",
   "types": "dist/index.d.ts",
@@ -13,9 +27,14 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
-  "repository": "https://github.com/designerzen/netronome.git",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/designerzen/netronome.git"
+  },
   "author": "designerzen",
   "license": "MIT",
   "type": "module",
