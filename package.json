@@ -22,7 +22,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.es.js",
+      "import": "./index.ts",
       "require": "./dist/index.js"
     }
   },
@@ -51,9 +51,6 @@
     "vitest": "^4.0.18"
   },
   "scripts": {
-    "start": "pnpm run dev",
-    "dev": "vite",
-    "dev:secure": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",

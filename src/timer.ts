@@ -8,16 +8,16 @@ import {
     EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 } from './timer-event-types'
 
-import { AudioContextWorkerWrapper, TimingWorkletNode, createTimingWorklet, RollingTimeWorkerWrapper, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper } from './timer-worker-types'
+import { AudioContextWorkerWrapper, RollingTimeWorkerWrapper, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper } from './timer-worker-types'
 import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, TIMER_TYPES, isValidTimerType, type TimerType } from './timer-types'
 
 import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
-import { WorkerWrapper } from './vite-env'
+import type { WorkerWrapper } from './vite-env'
 
 import Epoch from './epoch'
 import { TimerOptions, DEFAULT_TIMER_OPTIONS } from './timer-options'
-import { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces'
+import type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces'
 
 export const MAX_BARS_ALLOWED = 32
 
