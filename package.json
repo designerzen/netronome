@@ -1,6 +1,6 @@
 {
   "name": "netronome",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "rock solid js timing experiments",
   "main": "dist/index.js",
   "module": "dist/index.es.js",
@@ -19,10 +19,10 @@
   "author": "designerzen",
   "license": "MIT",
   "type": "module",
-  "packageManager": "pnpm@10.30.0",
+  "packageManager": "pnpm@10.30.3",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "@types/node": "^25.2.3",
+    "@types/node": "^25.3.3",
     "@vitejs/plugin-basic-ssl": "^2.1.4",
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.18",
