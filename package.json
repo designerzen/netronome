@@ -22,7 +22,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./index.ts",
+      "import": "./dist/index.es.js",
       "require": "./dist/index.js"
     }
   },
