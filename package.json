@@ -51,7 +51,7 @@
     "vitest": "^4.0.18"
   },
   "scripts": {
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && tsc --emitDeclarationOnly",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "test": "vitest",

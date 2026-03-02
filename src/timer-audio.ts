@@ -1,9 +1,6 @@
 import Timer from "./timer"
 
-import { 
-	AudioContextWorkerWrapper,
-	createTimingWorklet
-} from './timer-worker-types'
+import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET } from './timer-types'
 import type { AudioTimerOptions } from './timer-interfaces'
 
 const DEFAULT_AUDIO_TIMER_OPTIONS: AudioTimerOptions = {
@@ -28,20 +25,21 @@ export default class AudioTimer extends Timer {
 		return this.audioContext ? this.audioContext.currentTime : performance.now() 
 	}
 	
-	constructor(audioContext: AudioContext, isWorklet: boolean = true){
+	/**
+	 * Create an AudioTimer with an AudioContext
+	 * Uses AudioWorklet timing if available, falls back to AudioContext worker
+	 * @param audioContext The AudioContext to use for accurate timing
+	 * @param useAudioWorklet If true, attempts to use AudioWorklet (recommended). If false, uses AudioContext worker.
+	 */
+	constructor(audioContext: AudioContext, useAudioWorklet: boolean = true){
 		const timerOptions: AudioTimerOptions = {
 			audioContext,
-			...DEFAULT_AUDIO_TIMER_OPTIONS
+			...DEFAULT_AUDIO_TIMER_OPTIONS,
+			// Use the string type constant - Timer base class handles async initialization
+			type: useAudioWorklet ? TIMER_TYPE_AUDIO_WORKLET : TIMER_TYPE_AUDIO_CONTEXT
 		}
 
-		if (!isWorklet)
-		{
-			timerOptions.type = AudioContextWorkerWrapper
-		}else{
-			timerOptions.type = createTimingWorklet( audioContext )
-		}
-
-		super( timerOptions, isWorklet )
+		super( timerOptions, useAudioWorklet )
 		if (!this.audioContext)
 		{
 			throw Error('No AudioContext specified')

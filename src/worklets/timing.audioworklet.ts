@@ -1,4 +1,4 @@
-import AUDIOTIMER_PROCESSOR_URI from './timing.audioworklet-processor?url'
+import AUDIOTIMER_PROCESSOR_URI from './timing.audioworklet-processor?worker&url'
 
 interface TimingMessage {
 	command?: string
