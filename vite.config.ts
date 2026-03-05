@@ -24,11 +24,12 @@ export default defineConfig({
     minify: 'terser',
     sourcemap: true,
     rollupOptions: {
+      external: [],
       output: [
         {
           format: 'es',
           entryFileNames: 'index.es.js',
-          chunkFileNames: '[name].js'
+          chunkFileNames: '[name].es.js'
         },
         {
           format: 'umd',

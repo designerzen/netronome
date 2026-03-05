@@ -16,19 +16,22 @@
   "bugs": {
     "url": "https://github.com/designerzen/netronome/issues"
   },
-  "main": "dist/index.js",
-  "module": "dist/index.es.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.es.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.es.js",
-      "require": "./dist/index.js"
-    }
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md",
+    "LIBRARY.md",
     "LICENSE"
   ],
   "repository": {
@@ -52,7 +55,7 @@
   },
   "scripts": {
     "cert": "mkcert -install && mkcert -cert-file ./certs/localhost.pem -key-file ./certs/localhost-key.pem localhost 127.0.0.1 ::1",
-    "build": "tsc && vite build && tsc --emitDeclarationOnly",
+    "build": "vite build && tsc --emitDeclarationOnly --outDir dist",
     "start": "vite",
     "dev": "vite",
     "preview": "vite preview",
