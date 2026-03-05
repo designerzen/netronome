@@ -1,2 +1,1 @@
-packages:
-  - '.'
+# This file should be removed - netronome is a workspace package, not a workspace root
