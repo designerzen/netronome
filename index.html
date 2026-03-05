@@ -12,7 +12,7 @@
 <body>
   <button class="theme-toggle" id="theme-toggle">🌙 Dark</button>
   <main>
-    <div class="header">
+    <header class="header">
       <svg class="logo" width="100%" height="100%" viewBox="0 0 4267 4267" version="1.1"
         xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve"
         xmlns:serif="http://www.serif.com/"
@@ -28,103 +28,106 @@
         <h1>Netronome</h1>
         <p class="subtitle">Rock solid JavaScript timing experiments</p>
       </div>
-    </div>
+    </header>
 
     <!-- Shared Performance Chart (Top) -->
-    <div class="panel">
-      <div class="panel-title">Performance Monitor</div>
+    <section class="panel">
+      <h2 class="panel-title">Performance Monitor</h2>
       <div class="chart-container">
         <canvas id="multi-timer-chart"></canvas>
       </div>
-    </div>
+    </section>
 
     <!-- Timer Creation Panel -->
-    <div class="panel">
-      <div class="panel-title">Create Timer</div>
-      <div class="timer-creation-form">
-        <div class="timer-creation-row">
-          <div class="form-group">
-            <label for="new-timer-name">Timer Name</label>
-            <input id="new-timer-name" type="text" placeholder="e.g., Kick Drum, Snare..." />
-          </div>
-        </div>
-
-        <div class="timer-creation-row">
-          <div class="form-group">
-            <label for="new-timer-bpm">Tempo (BPM)</label>
-            <input id="new-timer-bpm" type="number" value="120" min="20" max="300" />
+    <section class="panel">
+      <h2 class="panel-title">Create Timer</h2>
+      <form class="timer-creation-form">
+        <fieldset>
+          <legend class="sr-only">Timer Settings</legend>
+          <div class="timer-creation-row">
+            <div class="form-group">
+              <label for="new-timer-name">Timer Name</label>
+              <input id="new-timer-name" type="text" placeholder="e.g., Kick Drum, Snare..." />
+            </div>
           </div>
 
-          <div class="form-group">
-            <label for="new-timer-bpm-slider">BPM Slider</label>
-            <input id="new-timer-bpm-slider" type="range" value="120" min="20" max="300" step="1" />
+          <div class="timer-creation-row">
+            <div class="form-group">
+              <label for="new-timer-bpm">Tempo (BPM)</label>
+              <input id="new-timer-bpm" type="number" value="120" min="20" max="300" />
+            </div>
+
+            <div class="form-group">
+              <label for="new-timer-bpm-slider">BPM Slider</label>
+              <input id="new-timer-bpm-slider" type="range" value="120" min="20" max="300" step="1" />
+            </div>
           </div>
-        </div>
 
-        <div class="timer-creation-row">
-          <div class="form-group">
-            <label for="new-timer-worker">Worker Type</label>
-            <select id="new-timer-worker">
-              <option value="audiocontext">Audio Context</option>
-              <option value="audioworklet">Audio Worklet</option>
-              <option value="audioworklet_processor">Audio Worklet Processor</option>
-              <option value="rolling">Rolling</option>
-              <option value="setinterval">SetInterval</option>
-              <option value="settimeout">SetTimeout</option>
-            </select>
+          <div class="timer-creation-row">
+            <div class="form-group">
+              <label for="new-timer-worker">Worker Type</label>
+              <select id="new-timer-worker">
+                <option value="audiocontext">Audio Context</option>
+                <option value="audioworklet">Audio Worklet</option>
+                <option value="audioworklet_processor">Audio Worklet Processor</option>
+                <option value="rolling">Rolling</option>
+                <option value="setinterval">SetInterval</option>
+                <option value="settimeout">SetTimeout</option>
+              </select>
+            </div>
           </div>
-        </div>
 
-        <div class="timer-creation-row">
-          <label for="new-timer-accurate">
-            <input id="new-timer-accurate" type="checkbox" />
-            Accurate Mode (drift compensation)
-          </label>
-          <label for="new-timer-metronome">
-            <input id="new-timer-metronome" type="checkbox" />
-            Metronome Sound
-          </label>
-          <label for="new-timer-cpu-stress">
-            <input id="new-timer-cpu-stress" type="checkbox" />
-            CPU Stress Test
-          </label>
-          <label for="new-timer-midi">
-            <input id="new-timer-midi" type="checkbox" />
-            MIDI Connect
-          </label>
-        </div>
+          <div class="timer-creation-row">
+            <label for="new-timer-accurate">
+              <input id="new-timer-accurate" type="checkbox" />
+              Accurate Mode (drift compensation)
+            </label>
+            <label for="new-timer-metronome">
+              <input id="new-timer-metronome" type="checkbox" />
+              Metronome Sound
+            </label>
+            <label for="new-timer-cpu-stress">
+              <input id="new-timer-cpu-stress" type="checkbox" />
+              CPU Stress Test
+            </label>
+            <label for="new-timer-midi">
+              <input id="new-timer-midi" type="checkbox" />
+              MIDI Connect
+            </label>
+          </div>
 
-        <div class="button-group">
-          <button id="create-timer">+ Create Timer</button>
-        </div>
-      </div>
-    </div>
+          <div class="button-group">
+            <button id="create-timer" type="submit">+ Create Timer</button>
+          </div>
+        </fieldset>
+      </form>
+    </section>
 
     <!-- Active Timers List -->
-    <div class="panel">
-      <div class="panel-title">Active Timers</div>
+    <section class="panel">
+      <h2 class="panel-title">Active Timers</h2>
       <div id="timers-list" class="timers-list"></div>
-    </div>
+    </section>
 
     <!-- Multi-Timer Expanded Details -->
-    <div id="timer-details-panel" class="timer-details-panel" hidden>
+    <section id="timer-details-panel" class="timer-details-panel" hidden>
       <div class="timer-details-content"></div>
-    </div>
+    </section>
 
     <!-- Templates -->
     <template id="timer-item-template">
-      <div class="timer-item" data-timer-id="">
+      <article class="timer-item" data-timer-id="">
         <div class="timer-tick-indicator"></div>
         <div class="timer-color-indicator"></div>
         <div class="timer-item-info">
-          <span class="timer-name"></span>
-          <span class="timer-status"></span>
+          <h3 class="timer-name"></h3>
+          <p class="timer-status"></p>
         </div>
         <div class="timer-item-controls">
           <button class="timer-toggle"></button>
           <button class="timer-remove">Remove</button>
         </div>
-      </div>
+      </article>
     </template>
   </main>
 

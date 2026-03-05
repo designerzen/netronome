@@ -12,7 +12,7 @@
 <body>
     <button class="theme-toggle" id="theme-toggle">🌙 Dark</button>
     <main>
-        <div class="header">
+        <header class="header">
             <svg class="logo" width="100%" height="100%" viewBox="0 0 4267 4267" version="1.1"
                 xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve"
                 xmlns:serif="http://www.serif.com/"
@@ -28,17 +28,17 @@
                 <h1>Netronome - Multi-Timer</h1>
                 <p class="subtitle">Run multiple timers at different tempos and compare performance</p>
             </div>
-        </div>
+        </header>
 
         <!-- Global Controls -->
-        <div class="panel">
-            <div class="panel-title">Global Controls</div>
+        <section class="panel">
+            <h2 class="panel-title">Global Controls</h2>
             <div class="button-group">
                 <button id="start-all">Start All</button>
                 <button id="stop-all" disabled>Stop All</button>
                 <button id="reset-all">Reset All</button>
             </div>
-        </div>
+        </section>
 
         <!-- Add Timer Button -->
         <button class="add-timer-btn" id="add-timer">+ Add Timer</button>
@@ -49,16 +49,16 @@
         </div>
 
         <!-- Performance Chart -->
-        <div class="panel">
-            <div class="panel-title">Performance Comparison</div>
+        <section class="panel">
+            <h2 class="panel-title">Performance Comparison</h2>
             <div class="chart-container">
                 <canvas id="multi-timer-chart"></canvas>
             </div>
-        </div>
+        </section>
 
         <!-- Statistics Table -->
-        <div class="panel">
-            <div class="panel-title">Timer Statistics</div>
+        <section class="panel">
+            <h2 class="panel-title">Timer Statistics</h2>
             <div class="table-container">
                 <table>
                     <thead>
@@ -78,17 +78,17 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </section>
     </main>
 
     <!-- Templates -->
     <template id="timer-card-template">
-        <div class="timer-card">
+        <article class="timer-card">
             <div class="timer-tick-indicator"></div>
-            <div class="timer-card-header">
+            <header class="timer-card-header">
                 <div class="timer-color-indicator"></div>
-                <div class="timer-card-title"></div>
-            </div>
+                <h3 class="timer-card-title"></h3>
+            </header>
 
             <div class="timer-controls-row">
                 <div class="timer-control-group">
@@ -132,7 +132,7 @@
                 <button class="timer-clear" disabled>Clear</button>
                 <button class="timer-remove remove">Remove</button>
             </div>
-        </div>
+        </article>
     </template>
 
     <script type="module" src="./tests/multi-timer-frontend.ts"></script>

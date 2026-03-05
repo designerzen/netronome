@@ -8,6 +8,18 @@
   box-sizing: border-box;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
 html {
   margin: 0;
   padding: 0;
@@ -73,6 +85,15 @@ h1 {
   font-size: 2.5rem;
 }
 
+h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+h3 {
+  margin: 0;
+}
+
 .subtitle {
   color: light-dark(#666, #999);
   margin: 0;
@@ -94,8 +115,7 @@ h1 {
   z-index: 10;
 }
 
-.panel-title {
-  font-size: 1.2rem;
+h2.panel-title {
   font-weight: 600;
   margin-bottom: 1.5rem;
   color: light-dark(#1a1a1a, #e0e0e0);
