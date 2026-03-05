@@ -48,6 +48,8 @@ const multiTimerManager = new MultiTimerManager()
 const runningTimers = new Map<string, RunningTimer>()
 const chart = new MultiTimerChart('multi-timer-chart')
 let isAnyRunning = false
+let tickAudioEnabled = false
+let audioContext: AudioContext | null = null
 
 // Initialize theme
 const initTheme = () => {
@@ -77,6 +79,40 @@ themeToggle.addEventListener('click', () => {
 })
 
 initTheme()
+
+// Play a short tick sound
+const playTickSound = (frequency: number = 1200, duration: number = 30) => {
+    if (!tickAudioEnabled) return
+    try {
+        if (!audioContext) {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+            if (!AudioContextClass) return
+            audioContext = new AudioContextClass()
+        }
+
+        if (audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => {})
+        }
+
+        const now = audioContext.currentTime
+        const oscillator = audioContext.createOscillator()
+        const gainNode = audioContext.createGain()
+
+        oscillator.connect(gainNode)
+        gainNode.connect(audioContext.destination)
+
+        oscillator.frequency.value = frequency
+        oscillator.type = 'sine'
+
+        gainNode.gain.setValueAtTime(0.15, now)
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration / 1000)
+
+        oscillator.start(now)
+        oscillator.stop(now + duration / 1000)
+    } catch (error) {
+        // Silently handle errors
+    }
+}
 
 // Render timer card
 const renderTimerCard = (timerId: string) => {
@@ -210,7 +246,7 @@ const startTimer = async (timerId: string) => {
                 color: config.color
             })
 
-            // Trigger tick indicator animation
+            // Trigger tick indicator animation and sound
             const timerCard = document.getElementById(`timer-${timerId}`)
             if (timerCard) {
                 timerCard.classList.remove('tick-active')
@@ -218,6 +254,9 @@ const startTimer = async (timerId: string) => {
                 void timerCard.offsetWidth
                 timerCard.classList.add('tick-active')
             }
+
+            // Play tick sound
+            playTickSound()
         }
 
         // Start the timer
@@ -374,6 +413,14 @@ addTimerBtn.addEventListener('click', () => {
 startAllBtn.addEventListener('click', startAllTimers)
 stopAllBtn.addEventListener('click', stopAllTimers)
 resetAllBtn.addEventListener('click', resetAllTimers)
+
+// Global tick audio toggle
+const globalTickAudioCheckbox = document.getElementById('global-tick-audio') as HTMLInputElement
+if (globalTickAudioCheckbox) {
+    globalTickAudioCheckbox.addEventListener('change', (event) => {
+        tickAudioEnabled = (event.target as HTMLInputElement).checked
+    })
+}
 
 // Initial render
 updateUI()

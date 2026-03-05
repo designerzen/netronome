@@ -64,6 +64,7 @@ let cpuStressEnabled = false
 let cpuStressAnimationId: number | null = null
 let midiOutputs: MIDIOutput[] = []
 let audioContext: AudioContext | null = null
+let tickAudioEnabled = false
 
 // ===== INITIALIZATION =====
 
@@ -134,6 +135,40 @@ const playMetronomeBeep = (frequency: number = 880, duration: number = 100) => {
 // Function to manually test audio
 const testAudioBeep = () => {
     playMetronomeBeep(880, 100)
+}
+
+// Play a short tick sound
+const playTickSound = (frequency: number = 1200, duration: number = 30) => {
+    if (!tickAudioEnabled) return
+    try {
+        if (!audioContext) {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+            if (!AudioContextClass) return
+            audioContext = new AudioContextClass()
+        }
+
+        if (audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => {})
+        }
+
+        const now = audioContext.currentTime
+        const oscillator = audioContext.createOscillator()
+        const gainNode = audioContext.createGain()
+
+        oscillator.connect(gainNode)
+        gainNode.connect(audioContext.destination)
+
+        oscillator.frequency.value = frequency
+        oscillator.type = 'sine'
+
+        gainNode.gain.setValueAtTime(0.15, now)
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration / 1000)
+
+        oscillator.start(now)
+        oscillator.stop(now + duration / 1000)
+    } catch (error) {
+        // Silently handle errors
+    }
 }
 
 // ===== TIMER CREATION =====
@@ -433,7 +468,7 @@ const startTimer = async (timerId: string) => {
                 color: config.color
             })
 
-            // Trigger tick indicator animation
+            // Trigger tick indicator animation and sound
             const timerItem = timersList.querySelector(`[data-timer-id="${timerId}"]`)
             if (timerItem) {
                 timerItem.classList.remove('tick-active')
@@ -441,6 +476,9 @@ const startTimer = async (timerId: string) => {
                 void (timerItem as HTMLElement).offsetWidth
                 timerItem.classList.add('tick-active')
             }
+
+            // Play tick sound
+            playTickSound()
 
             // Update UI if this timer is selected
             if (selectedTimerId === timerId) {
@@ -621,6 +659,16 @@ newTimerCpuStressCheckbox.addEventListener('change', (event) => {
         cpuStressAnimationId = null
     }
 })
+
+// ===== TICK AUDIO =====
+
+const newTimerTickAudioCheckbox = getElement<HTMLInputElement>('new-timer-tick-audio')
+
+if (newTimerTickAudioCheckbox) {
+    newTimerTickAudioCheckbox.addEventListener('change', (event) => {
+        tickAudioEnabled = (event.target as HTMLInputElement).checked
+    })
+}
 
 // ===== MIDI SUPPORT =====
 

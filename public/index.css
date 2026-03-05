@@ -270,6 +270,18 @@ select:focus {
   flex-wrap: wrap;
 }
 
+.global-option-label {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.global-option-label input {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -884,35 +896,41 @@ tr:last-child td {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: currentColor;
   opacity: 0;
   pointer-events: none;
-  box-shadow: 0 0 5px currentColor;
+  box-shadow: 0 0 8px 2px currentColor, inset 0 0 4px currentColor;
 }
 
 .timer-card .timer-tick-indicator {
   top: 10px;
   right: 10px;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
+  box-shadow: 0 0 10px 3px currentColor, inset 0 0 6px currentColor;
 }
 
 .timer-item.tick-active .timer-tick-indicator,
 .timer-card.tick-active .timer-tick-indicator {
-  animation: tick-pulse 0.15s ease-out;
+  animation: tick-pulse 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes tick-pulse {
   0% {
     opacity: 1;
     transform: scale(1);
+    box-shadow: 0 0 8px 2px currentColor, inset 0 0 4px currentColor;
+  }
+  50% {
+    opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: scale(1.5);
+    transform: scale(2);
+    box-shadow: 0 0 15px 8px transparent, inset 0 0 0 transparent;
   }
 }
 
