@@ -55,7 +55,7 @@
   },
   "scripts": {
     "cert": "mkcert -install && mkcert -cert-file ./certs/localhost.pem -key-file ./certs/localhost-key.pem localhost 127.0.0.1 ::1",
-    "build": "vite build && tsc --emitDeclarationOnly --outDir dist",
+    "build": "vite build && tsc --emitDeclarationOnly --outDir dist && vite build -c vite.lib.config.ts --mode lib",
     "start": "vite",
     "dev": "vite",
     "preview": "vite preview",
