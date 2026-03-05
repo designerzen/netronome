@@ -107,9 +107,25 @@
     </div>
 
     <!-- Multi-Timer Expanded Details -->
-    <div id="timer-details-panel" class="timer-details-panel" style="display: none;">
+    <div id="timer-details-panel" class="timer-details-panel" hidden>
       <div class="timer-details-content"></div>
     </div>
+
+    <!-- Templates -->
+    <template id="timer-item-template">
+      <div class="timer-item" data-timer-id="">
+        <div class="timer-tick-indicator"></div>
+        <div class="timer-color-indicator"></div>
+        <div class="timer-item-info">
+          <span class="timer-name"></span>
+          <span class="timer-status"></span>
+        </div>
+        <div class="timer-item-controls">
+          <button class="timer-toggle"></button>
+          <button class="timer-remove">Remove</button>
+        </div>
+      </div>
+    </template>
   </main>
 
   <script type="module" src="./tests/front-end.ts"></script>

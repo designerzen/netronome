@@ -85,68 +85,55 @@ const renderTimerCard = (timerId: string) => {
 
     const running = runningTimers.get(timerId)?.isRunning || false
     const stats = runningTimers.get(timerId)?.stats
+    const template = document.getElementById('timer-card-template') as HTMLTemplateElement
 
-    const card = document.createElement('div')
-    card.className = 'timer-card'
+    // Clone template
+    const fragment = template.content.cloneNode(true) as DocumentFragment
+    const card = fragment.querySelector('.timer-card') as HTMLElement
     card.id = `timer-${timerId}`
-    card.innerHTML = `
-        <div class="timer-card-header">
-            <div class="timer-color-indicator" style="background: ${timerConfig.color}"></div>
-            <div class="timer-card-title">${timerConfig.name}</div>
-        </div>
 
-        <div class="timer-controls-row">
-            <div class="timer-control-group" style="flex: 1;">
-                <label>Tempo (BPM)</label>
-                <input type="number" class="timer-bpm" value="${timerConfig.bpm}" min="20" max="300" ${running ? 'disabled' : ''} />
-            </div>
-            <div class="timer-control-group" style="flex: 1;">
-                <label>Worker Type</label>
-                <select class="timer-worker-type" ${running ? 'disabled' : ''}>
-                    <option value="audiocontext" ${timerConfig.workerType === 'audiocontext' ? 'selected' : ''}>AudioContext</option>
-                    <option value="audioworklet" ${timerConfig.workerType === 'audioworklet' ? 'selected' : ''}>AudioWorklet</option>
-                    <option value="rolling" ${timerConfig.workerType === 'rolling' ? 'selected' : ''}>Rolling</option>
-                    <option value="setinterval" ${timerConfig.workerType === 'setinterval' ? 'selected' : ''}>SetInterval</option>
-                    <option value="settimeout" ${timerConfig.workerType === 'settimeout' ? 'selected' : ''}>SetTimeout</option>
-                </select>
-            </div>
-        </div>
+    // Update header
+    const tickIndicator = fragment.querySelector('.timer-tick-indicator') as HTMLElement
+    tickIndicator.style.color = timerConfig.color
 
-        <div class="timer-stats">
-            <div class="timer-stat">
-                <div class="timer-stat-label">Avg Lag</div>
-                <div class="timer-stat-value">${stats?.lags.length ? (stats.lags.reduce((a, b) => a + b) / stats.lags.length).toFixed(2) : '0.00'}ms</div>
-            </div>
-            <div class="timer-stat">
-                <div class="timer-stat-label">Avg Drift</div>
-                <div class="timer-stat-value">${stats?.drifts.length ? (stats.drifts.reduce((a, b) => a + b) / stats.drifts.length).toFixed(2) : '0.00'}ms</div>
-            </div>
-            <div class="timer-stat">
-                <div class="timer-stat-label">Ticks</div>
-                <div class="timer-stat-value">${stats?.ticks || 0}</div>
-            </div>
-            <div class="timer-stat">
-                <div class="timer-stat-label">Status</div>
-                <div class="timer-stat-value">${running ? '▶ Running' : '⏸ Stopped'}</div>
-            </div>
-        </div>
+    const colorIndicator = fragment.querySelector('.timer-color-indicator') as HTMLElement
+    colorIndicator.style.background = timerConfig.color
 
-        <div class="timer-actions">
-            <button class="timer-start" ${running ? 'disabled' : ''}>Start</button>
-            <button class="timer-stop" ${!running ? 'disabled' : ''}>Stop</button>
-            <button class="timer-clear" ${!stats?.ticks ? 'disabled' : ''}>Clear</button>
-            <button class="timer-remove remove">Remove</button>
-        </div>
-    `
+    const cardTitle = fragment.querySelector('.timer-card-title') as HTMLElement
+    cardTitle.textContent = timerConfig.name
+
+    // Update controls
+    const bpmInput = fragment.querySelector('.timer-bpm') as HTMLInputElement
+    bpmInput.value = timerConfig.bpm.toString()
+    bpmInput.disabled = running
+
+    const workerTypeSelect = fragment.querySelector('.timer-worker-type') as HTMLSelectElement
+    workerTypeSelect.value = timerConfig.workerType || 'audiocontext'
+    workerTypeSelect.disabled = running
+
+    // Update stats
+    const statValues = fragment.querySelectorAll('.timer-stat-value')
+    if (statValues.length >= 4) {
+        const avgLag = stats?.lags.length ? (stats.lags.reduce((a, b) => a + b) / stats.lags.length).toFixed(2) : '0.00'
+        const avgDrift = stats?.drifts.length ? (stats.drifts.reduce((a, b) => a + b) / stats.drifts.length).toFixed(2) : '0.00'
+        
+        statValues[0].textContent = `${avgLag}ms`
+        statValues[1].textContent = `${avgDrift}ms`
+        statValues[2].textContent = `${stats?.ticks || 0}`
+        statValues[3].textContent = running ? '▶ Running' : '⏸ Stopped'
+    }
+
+    // Update buttons
+    const startBtn = fragment.querySelector('.timer-start') as HTMLButtonElement
+    const stopBtn = fragment.querySelector('.timer-stop') as HTMLButtonElement
+    const clearBtn = fragment.querySelector('.timer-clear') as HTMLButtonElement
+    const removeBtn = fragment.querySelector('.timer-remove') as HTMLButtonElement
+
+    startBtn.disabled = running
+    stopBtn.disabled = !running
+    clearBtn.disabled = !stats?.ticks
 
     // Add event listeners
-    const bpmInput = card.querySelector('.timer-bpm') as HTMLInputElement
-    const workerTypeSelect = card.querySelector('.timer-worker-type') as HTMLSelectElement
-    const startBtn = card.querySelector('.timer-start') as HTMLButtonElement
-    const stopBtn = card.querySelector('.timer-stop') as HTMLButtonElement
-    const clearBtn = card.querySelector('.timer-clear') as HTMLButtonElement
-    const removeBtn = card.querySelector('.timer-remove') as HTMLButtonElement
-
     bpmInput.addEventListener('change', (e) => {
         const bpm = parseInt((e.target as HTMLInputElement).value)
         multiTimerManager.updateTimerConfig(timerId, { bpm })
@@ -168,7 +155,7 @@ const renderTimerCard = (timerId: string) => {
     clearBtn.addEventListener('click', () => clearTimer(timerId))
     removeBtn.addEventListener('click', () => removeTimer(timerId))
 
-    return card
+    return fragment
 }
 
 // Start a timer
@@ -222,6 +209,15 @@ const startTimer = async (timerId: string) => {
                 timestamp: Date.now(),
                 color: config.color
             })
+
+            // Trigger tick indicator animation
+            const timerCard = document.getElementById(`timer-${timerId}`)
+            if (timerCard) {
+                timerCard.classList.remove('tick-active')
+                // Trigger reflow to restart animation
+                void timerCard.offsetWidth
+                timerCard.classList.add('tick-active')
+            }
         }
 
         // Start the timer
@@ -330,9 +326,9 @@ const updateUI = () => {
     // Render timer cards
     timersContainer.innerHTML = ''
     timers.forEach(timer => {
-        const card = renderTimerCard(timer.id)
-        if (card) {
-            timersContainer.appendChild(card)
+        const fragment = renderTimerCard(timer.id)
+        if (fragment) {
+            timersContainer.appendChild(fragment)
         }
     })
 

@@ -147,56 +147,65 @@ const syncBpmControls = (value: number) => {
 
 const renderTimersList = () => {
     const timers = multiTimerManager.getAllTimers()
+    const template = document.getElementById('timer-item-template') as HTMLTemplateElement
 
     if (timers.length === 0) {
         timersList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">No timers yet. Click "Create Timer" to start.</p>'
         return
     }
 
-    timersList.innerHTML = timers.map(timer => {
+    timersList.innerHTML = ''
+    
+    timers.forEach(timer => {
         const running = runningTimers.get(timer.id)?.isRunning || false
-        const stats = runningTimers.get(timer.id)?.stats
         const isSelected = selectedTimerId === timer.id
 
-        return `
-            <div class="timer-item ${isSelected ? 'active' : ''}" data-timer-id="${timer.id}">
-                <div class="timer-color-indicator" style="background: ${timer.color}"></div>
-                <div class="timer-item-info">
-                    <span class="timer-name">${timer.name}</span>
-                    <span class="timer-status">${timer.bpm} BPM ${running ? '▶' : '⏸'}</span>
-                </div>
-                <div class="timer-item-controls">
-                    <button class="timer-toggle" data-timer-id="${timer.id}">${running ? 'Stop' : 'Start'}</button>
-                    <button class="timer-remove" data-timer-id="${timer.id}">Remove</button>
-                </div>
-            </div>
-        `
-    }).join('')
+        // Clone template
+        const fragment = template.content.cloneNode(true) as DocumentFragment
+        const item = fragment.querySelector('.timer-item') as HTMLElement
+        
+        // Set data attributes
+        item.dataset.timerId = timer.id
+        if (isSelected) item.classList.add('active')
 
-    // Add event listeners
-    timersList.querySelectorAll('.timer-item').forEach(item => {
+        // Update elements
+        const tickIndicator = fragment.querySelector('.timer-tick-indicator') as HTMLElement
+        tickIndicator.style.color = timer.color
+
+        const colorIndicator = fragment.querySelector('.timer-color-indicator') as HTMLElement
+        colorIndicator.style.background = timer.color
+
+        const nameEl = fragment.querySelector('.timer-name') as HTMLElement
+        nameEl.textContent = timer.name
+
+        const statusEl = fragment.querySelector('.timer-status') as HTMLElement
+        statusEl.textContent = `${timer.bpm} BPM ${running ? '▶' : '⏸'}`
+
+        const toggleBtn = fragment.querySelector('.timer-toggle') as HTMLButtonElement
+        toggleBtn.textContent = running ? 'Stop' : 'Start'
+        toggleBtn.dataset.timerId = timer.id
+
+        const removeBtn = fragment.querySelector('.timer-remove') as HTMLButtonElement
+        removeBtn.dataset.timerId = timer.id
+
+        // Add event listeners
         item.addEventListener('click', () => {
-            const timerId = (item as any).dataset.timerId
-            selectTimer(timerId)
+            selectTimer(timer.id)
         })
-    })
 
-    timersList.querySelectorAll('.timer-toggle').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        toggleBtn.addEventListener('click', (e) => {
             e.stopPropagation()
-            const timerId = (btn as any).dataset.timerId
-            const running = runningTimers.get(timerId)?.isRunning
-            if (running) stopTimer(timerId)
-            else startTimer(timerId)
+            const running = runningTimers.get(timer.id)?.isRunning
+            if (running) stopTimer(timer.id)
+            else startTimer(timer.id)
         })
-    })
 
-    timersList.querySelectorAll('.timer-remove').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        removeBtn.addEventListener('click', (e) => {
             e.stopPropagation()
-            const timerId = (btn as any).dataset.timerId
-            removeTimer(timerId)
+            removeTimer(timer.id)
         })
+
+        timersList.appendChild(fragment)
     })
 }
 
@@ -205,14 +214,14 @@ const selectTimer = (timerId: string) => {
     if (selectedTimerId) {
         showTimerDetails(selectedTimerId)
     } else {
-        timerDetailsPanel.style.display = 'none'
+        timerDetailsPanel.hidden = true
     }
     renderTimersList()
 }
 
 const updateTimerDetailsStats = (timerId: string, stats: { ticks: number; lags: number[]; drifts: number[] }) => {
     // Only update if details panel is visible
-    if (timerDetailsPanel.style.display === 'none') return
+    if (timerDetailsPanel.hidden) return
 
     const avgLag = stats.lags.length ? (stats.lags.reduce((a, b) => a + b) / stats.lags.length).toFixed(2) : '0.00'
     const avgDrift = stats.drifts.length ? (stats.drifts.reduce((a, b) => a + b) / stats.drifts.length).toFixed(2) : '0.00'
@@ -236,6 +245,7 @@ const showTimerDetails = (timerId: string) => {
     const startTimeDisplay = config.startTime ? new Date(config.startTime).toLocaleString() : '—'
     const epochDisplay = config.epoch || '—'
 
+    timerDetailsPanel.hidden = false
     timerDetailsContent.innerHTML = `
         <div class="timer-detail-section">
             <h3>Configuration</h3>
@@ -304,8 +314,6 @@ const showTimerDetails = (timerId: string) => {
             </div>
         </div>
     `
-
-    timerDetailsPanel.style.display = 'block'
 
     // Add event listeners
     const nameInput = timerDetailsContent.querySelector('.timer-name-input') as HTMLInputElement
@@ -425,6 +433,15 @@ const startTimer = async (timerId: string) => {
                 color: config.color
             })
 
+            // Trigger tick indicator animation
+            const timerItem = timersList.querySelector(`[data-timer-id="${timerId}"]`)
+            if (timerItem) {
+                timerItem.classList.remove('tick-active')
+                // Trigger reflow to restart animation
+                void (timerItem as HTMLElement).offsetWidth
+                timerItem.classList.add('tick-active')
+            }
+
             // Update UI if this timer is selected
             if (selectedTimerId === timerId) {
                 updateTimerDetailsStats(timerId, stats)
@@ -497,7 +514,7 @@ const removeTimer = async (timerId: string) => {
     multiChart.clearTimer(timerId)
     if (selectedTimerId === timerId) {
         selectedTimerId = null
-        timerDetailsPanel.style.display = 'none'
+        timerDetailsPanel.hidden = true
     }
     renderTimersList()
     }
