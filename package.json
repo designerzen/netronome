@@ -12,7 +12,7 @@
     "scheduling",
     "javascript"
   ],
-  "homepage": "https://github.com/designerzen/netronome#readme",
+  "homepage": "https://designerzen.github.io/netronome/",
   "bugs": {
     "url": "https://github.com/designerzen/netronome/issues"
   },
@@ -51,7 +51,10 @@
     "vitest": "^4.0.18"
   },
   "scripts": {
+    "cert": "mkcert -install && mkcert -cert-file ./certs/localhost.pem -key-file ./certs/localhost-key.pem localhost 127.0.0.1 ::1",
     "build": "tsc && vite build",
+    "start": "vite",
+    "dev": "vite",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "test": "vitest",

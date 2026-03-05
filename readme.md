@@ -26,7 +26,56 @@ Netronome is a comprehensive timing system that prioritizes accuracy in JavaScri
 npm install netronome
 # or
 pnpm add netronome
+# or
+yarn add netronome
 ```
+
+## Consuming the Library
+
+### ES Modules (Recommended)
+
+```javascript
+import { Timer } from 'netronome'
+import AudioTimer from 'netronome'
+import { startTimer, stopTimer } from 'netronome'
+```
+
+Tree-shaking compatible - only imported code is bundled.
+
+### CommonJS
+
+```javascript
+const { Timer } = require('netronome')
+const AudioTimer = require('netronome').default
+```
+
+### Browser (UMD)
+
+```html
+<script src="https://unpkg.com/netronome"></script>
+<script>
+  const timer = new Netronome.Timer({ bpm: 120 })
+</script>
+```
+
+### TypeScript
+
+```typescript
+import { Timer, TimerOptions, TimerEvent } from 'netronome'
+
+const timer: Timer = new Timer({
+  bpm: 120,
+  divisions: 24
+})
+
+const callback = (event: TimerEvent) => {
+  console.log(event.elapsed)
+}
+
+await timer.startTimer(callback)
+```
+
+Full type definitions included - no `@types` package needed.
 
 ## Quick Start
 

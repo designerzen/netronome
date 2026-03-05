@@ -27,9 +27,13 @@ pnpm-debug.log*
 *.swo
 *~
 
+# Build output
+dist/
+
 # Vite
 .vite/
 .vite-cert/
+certs/
 
 # Vitest
 coverage/

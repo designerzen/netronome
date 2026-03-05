@@ -1,9 +1,16 @@
 import { defineConfig } from 'vite'
-import basicSsl from '@vitejs/plugin-basic-ssl'
+import fs from 'fs'
+import path from 'path'
+
+const certDir = path.resolve(__dirname, './certs')
+const keyFile = path.join(certDir, 'localhost-key.pem')
+const certFile = path.join(certDir, 'localhost.pem')
+
+const hasLocalCerts = fs.existsSync(keyFile) && fs.existsSync(certFile)
 
 export default defineConfig({
   base: '/netronome/',
-  plugins: [basicSsl()],
+  plugins: [],
   worker: {
     format: 'es'
   },
@@ -33,10 +40,14 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3000,
-    open: true
+    port: 3030,
+    open: true,
+    https: hasLocalCerts ? {
+      key: fs.readFileSync(keyFile),
+      cert: fs.readFileSync(certFile)
+    } : undefined
   },
   preview: {
-    port: 4173
+    port: 3030
   }
 })
