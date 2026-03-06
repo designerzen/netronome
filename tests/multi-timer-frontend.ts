@@ -138,6 +138,9 @@ const renderTimerCard = (timerId: string) => {
     const cardTitle = fragment.querySelector('.timer-card-title') as HTMLElement
     cardTitle.textContent = timerConfig.name
 
+    const typeBadge = fragment.querySelector('.timer-type-badge') as HTMLElement
+    typeBadge.textContent = timerConfig.workerType || 'Unknown'
+
     // Update controls
     const bpmInput = fragment.querySelector('.timer-bpm') as HTMLInputElement
     bpmInput.value = timerConfig.bpm.toString()

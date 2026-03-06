@@ -216,6 +216,9 @@ const renderTimersList = () => {
         const statusEl = fragment.querySelector('.timer-status') as HTMLElement
         statusEl.textContent = `${timer.bpm} BPM ${running ? '▶' : '⏸'}`
 
+        const typeBadge = fragment.querySelector('.timer-type-badge') as HTMLElement
+        typeBadge.textContent = timer.workerType || 'Unknown'
+
         const toggleBtn = fragment.querySelector('.timer-toggle') as HTMLButtonElement
         toggleBtn.textContent = running ? 'Stop' : 'Start'
         toggleBtn.dataset.timerId = timer.id
