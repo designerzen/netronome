@@ -1,5 +1,3 @@
-import AUDIOTIMER_PROCESSOR_URI from './timing.audioworklet-processor?worker&url'
-
 interface TimingMessage {
 	command?: string
 	event?: string
@@ -9,6 +7,20 @@ interface TimingMessage {
 	intervals?: number
 }
 
+// Lazy-loaded processor code and cached object URL
+let processorURL: string | null = null
+
+const getProcessorURL = async (): Promise<string> => {
+	if (processorURL) {
+		return processorURL
+	}
+	
+	const processorCode = await import('./timing.audioworklet-processor.js?raw').then(m => m.default)
+	const blob = new Blob([processorCode], { type: 'application/javascript' })
+	processorURL = URL.createObjectURL(blob)
+	return processorURL
+}
+
 /**
  * Wrap the above in a single call
  * @param {AudioContext} context 
@@ -16,10 +28,11 @@ interface TimingMessage {
  */
 export const createTimingWorklet = async (context: AudioContext): Promise<TimingAudioWorkletNode> =>{
 	try{
-		await context.audioWorklet.addModule(AUDIOTIMER_PROCESSOR_URI)
-		console.info("AudioWorklet processor loaded successfully from:", AUDIOTIMER_PROCESSOR_URI)
+		const url = await getProcessorURL()
+		await context.audioWorklet.addModule(url)
+		console.info("AudioWorklet processor loaded successfully from blob")
 	}catch(error){
-		console.error("AudioWorklet processor failed to load from:", AUDIOTIMER_PROCESSOR_URI, error)
+		console.error("AudioWorklet processor failed to load:", error)
 		throw new Error(`Failed to load AudioWorklet processor: ${error instanceof Error ? error.message : String(error)}`)
 	}
 

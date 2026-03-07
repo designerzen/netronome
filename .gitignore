@@ -28,7 +28,7 @@ pnpm-debug.log*
 *~
 
 # Build output
-dist/
+# dist/
 
 # Vite
 .vite/

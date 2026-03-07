@@ -5,11 +5,17 @@
 * @class TimingProcessor
 * @extends AudioWorkletProcessor
 */
-import {
-	CMD_INITIALISE,
-	CMD_START,CMD_STOP,CMD_UPDATE,CMD_ADJUST_DRIFT,
-	EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
-} from '../timer-event-types'
+
+// Embedded event type constants to make this file self-contained for Blob loading
+const CMD_INITIALISE = "init"
+const CMD_START = "start"
+const CMD_STOP = "stop"
+const CMD_UPDATE = "update"
+const CMD_ADJUST_DRIFT = "adjust-drift"
+const EVENT_READY = "ready"
+const EVENT_STARTING = "starting"
+const EVENT_STOPPING = "stopping"
+const EVENT_TICK = "tick"
 
 interface ProcessorMessage {
 	event?: string
