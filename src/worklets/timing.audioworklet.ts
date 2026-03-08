@@ -15,10 +15,10 @@ const getProcessorURL = async (): Promise<string> => {
 		return processorURL
 	}
 	
-	// Import the processor module to ensure it's built by Vite
-	// Then construct the URL to the built file
-	await import('./timing.audioworklet-processor.ts')
-	processorURL = new URL('./timing.audioworklet-processor.ts', import.meta.url).href
+	// Dynamically import and get raw code
+	const processorCode = await import('./timing.audioworklet-processor.js?raw').then(m => m.default)
+	const blob = new Blob([processorCode], { type: 'application/javascript' })
+	processorURL = URL.createObjectURL(blob)
 	return processorURL
 }
 
