@@ -7,7 +7,7 @@ interface TimingMessage {
 	intervals?: number
 }
 
-// Lazy-loaded processor code and cached object URL
+// Lazy-loaded processor URL and cached object URL
 let processorURL: string | null = null
 
 const getProcessorURL = async (): Promise<string> => {
@@ -15,9 +15,10 @@ const getProcessorURL = async (): Promise<string> => {
 		return processorURL
 	}
 	
-	const processorCode = await import('./timing.audioworklet-processor.js?raw').then(m => m.default)
-	const blob = new Blob([processorCode], { type: 'application/javascript' })
-	processorURL = URL.createObjectURL(blob)
+	// Import the processor module to ensure it's built by Vite
+	// Then construct the URL to the built file
+	await import('./timing.audioworklet-processor.ts')
+	processorURL = new URL('./timing.audioworklet-processor.ts', import.meta.url).href
 	return processorURL
 }
 
