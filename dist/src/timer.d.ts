@@ -1,6 +1,6 @@
-import { type TimerType } from './timer-types';
 import type { WorkerWrapper } from './vite-env';
 import { TimerOptions } from './timer-options';
+import { type TimerType } from './timer-types';
 import type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces';
 export declare const MAX_BARS_ALLOWED = 32;
 export type { ITimerControl, TimingHandler, TimerCallbackEvent };

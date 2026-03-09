@@ -4,7 +4,7 @@ A high-precision timing and tempo library for JavaScript, designed to achieve ne
 
 You can use this for repeating timings in contexts such as animation or audio or synching both together!
 
-**[Live Demo](https://designerzen.github.io/netronome/)** - Test timing accuracy in your browser
+**[Live Demo](https://designerzen.github.io/netronome/)** - Test timing accuracy in your browser with interactive GUI
 
 ## Overview
 
@@ -12,15 +12,20 @@ Netronome is a comprehensive timing system that prioritizes accuracy in JavaScri
 
 ### Key Features
 
-- **Multiple timing backends**: [AudioContext](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext) Worker, [Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) (setInterval/setTimeout), and rolling timers
+- **Multiple timing backends**: AudioContext Worker, Web Workers (setInterval/setTimeout), rolling timers, and audio worklets
 - **High-precision timing**: Works around browser timing resolution limitations
-- **Tap tempo detection**: Automatic BPM detection from user input with [linear regression](https://www.nayuki.io/page/tap-to-measure-tempo-javascript)
-- **MIDI clock support**: External clock synchronization ([24 pulses per quarter note](https://en.wikipedia.org/wiki/MIDI_clock))
+- **Tap tempo detection**: Automatic BPM detection from user input with linear regression
+- **MIDI clock support**: External clock synchronization (24 pulses per quarter note)
 - **Instance-based timers**: Run multiple independent timers at different rates simultaneously
 - **Beat and bar synchronization**: Full support for bars, divisions (24 per beat, MIDI-compliant), and musical time calculations
-- **Comprehensive timing metrics**: Track drift, lag, and expected vs. actual timing
+- **Comprehensive timing metrics**: Track drift, lag, and expected vs. actual timing with visual indicators
 - **Audio worklet support**: Ultra-low-latency timing on supported browsers
 - **TypeScript support**: Fully typed API
+- **Visual Tick Indicators**: Bright glowing pulse animation on every timer tick for immediate visual feedback
+- **Tick Audio**: Optional audio beep sound on each timer tick (1200Hz, 30ms) for auditory feedback
+- **Interactive GUI**: Real-time timer monitoring with performance charts and statistics
+- **CPU Stress Testing**: Test timing accuracy under CPU load
+- **Dark/Light Theme**: Automatic theme detection with manual toggle
 
 ## Installation
 
@@ -32,73 +37,9 @@ pnpm add netronome
 yarn add netronome
 ```
 
-## Consuming the Library
-
-### ES Modules (Recommended)
-
-```javascript
-import { Timer } from 'netronome'
-import AudioTimer from 'netronome'
-import { startTimer, stopTimer } from 'netronome'
-```
-
-Tree-shaking compatible - only imported code is bundled.
-
-### CommonJS
-
-```javascript
-const { Timer } = require('netronome')
-const AudioTimer = require('netronome').default
-```
-
-### Browser (UMD)
-
-```html
-<script src="https://unpkg.com/netronome"></script>
-<script>
-  const timer = new Netronome.Timer({ bpm: 120 })
-</script>
-```
-
-### TypeScript
-
-```typescript
-import { Timer, TimerOptions, TimerEvent } from 'netronome'
-
-const timer: Timer = new Timer({
-  bpm: 120,
-  divisions: 24
-})
-
-const callback = (event: TimerEvent) => {
-  console.log(event.elapsed)
-}
-
-await timer.startTimer(callback)
-```
-
-Full type definitions included - no `@types` package needed.
-
 ## Quick Start
 
-### Basic Timer (Global API)
-
-```javascript
-import { startTimer, stopTimer, setTimeBetween } from 'netronome'
-
-// Start a timer that fires every 1000ms
-startTimer(({ timePassed, drift, lag }) => {
-  console.log('Tick', { timePassed, drift, lag })
-}, 1000)
-
-// Stop the timer
-stopTimer()
-
-// Change interval
-setTimeBetween(500)
-```
-
-### Instance-Based Timer
+### Basic Usage
 
 ```javascript
 import Timer from 'netronome'
@@ -133,34 +74,44 @@ await timer.startTimer((event) => {
 })
 ```
 
+### Create Multiple Timers
+
+```javascript
+import { createTimer } from 'netronome'
+
+// Create independent timers running at different tempos
+const timer1 = createTimer({ interval: 500 })  // 120 BPM
+const timer2 = createTimer({ interval: 333 })  // 180 BPM
+
+await timer1.startTimer(callback1)
+await timer2.startTimer(callback2)
+```
+
+## GUI Features
+
+The interactive demo provides:
+
+### Index Page (Main Dashboard)
+- Create timers with custom names and tempos
+- Select different worker types (AudioContext, AudioWorklet, Rolling, SetInterval, SetTimeout)
+- Enable/disable accurate mode (drift compensation)
+- Optional metronome sounds
+- MIDI clock synchronization
+- CPU stress testing
+- Real-time performance monitoring
+- Timer details panel with timing statistics
+- Visual tick indicators with configurable audio feedback
+
+### Multi-Timer Page
+- Compare multiple timers running simultaneously
+- Global controls for Start All, Stop All, Reset All
+- Per-timer statistics (average lag, drift, tick count)
+- Performance comparison chart
+- Worker type display for each timer
+- Configurable tick audio per timer
+- Dark/light theme support
+
 ## API Reference
-
-### Global Functions
-
-#### `startTimer(callback, interval, options)`
-
-Start the global timer instance.
-
-- **callback**: `(event: TimerEvent) => void` - Called on each tick
-- **interval**: `number` - Milliseconds between ticks (default: 1000)
-- **options**: `object` - Timer options
-  - **type**: `string` - Worker URI (audiocontext, rolling, setinterval, settimeout)
-
-#### `stopTimer()`
-
-Stop the global timer.
-
-#### `setTimeBetween(interval)`
-
-Update the interval without restarting the timer.
-
-#### `resetTimer()`
-
-Reset the global timer state.
-
-#### `createTimer(options)`
-
-Create a new independent Timer instance.
 
 ### Timer Class
 
@@ -248,7 +199,7 @@ Handle external clock signals (e.g., MIDI clock). Call this on each external clo
 
 ##### `retrigger()`
 
-Repeat the previous clock tick without advancing the divisions counter.
+Repeat previous clock tick but do not advance.
 
 ##### `useExternalClock(enabled?)`
 
@@ -313,7 +264,7 @@ Netronome supports multiple timing backends, each with different precision chara
 High-precision timing using Web Audio API in a worker thread. Generally the most accurate.
 
 ### AudioWorklet
-Ultra-low-latency option using modern Web Audio worklets.
+Ultra-low-latency option using modern Web Audio worklets (Chrome 66+, Firefox 76+, Safari 14.1+).
 
 ### Rolling Timer
 Custom rolling timer implementation with frame-based synchronization.
@@ -333,110 +284,8 @@ Netronome works around these limitations by:
 2. Tracking and reporting drift and lag metrics
 3. Providing multiple backend options for different use cases
 4. Averaging timing measurements across samples
-
-## Time Utilities
-
-Netronome includes utility functions for time calculations:
-
-```javascript
-import { 
-  convertBPMToPeriod,
-  convertPeriodToBPM,
-  convertMIDIClockIntervalToBPM,
-  secondsToTicks,
-  formatTimeStampFromSeconds
-} from 'netronome'
-
-// Convert between BPM and period (ms)
-const period = convertBPMToPeriod(120)  // 500ms per beat
-const bpm = convertPeriodToBPM(500)     // 120 BPM
-
-// Calculate ticks at a given tempo
-const ticks = secondsToTicks(2, 120)    // 2 seconds at 120 BPM
-
-// Format time
-const timeStr = formatTimeStampFromSeconds(3661.25) // "01:01:01:25"
-
-// MIDI clock conversion (24 pulses per quarter note)
-const bpm = convertMIDIClockIntervalToBPM(20.83) // BPM from clock interval
-```
-
-### Tick Resolution
-
-Netronome uses a high-resolution tick system compatible with MIDI:
-- **3840 ticks** = 1 quarter note (beat)
-- **15360 ticks** = 1 whole note
-- **960 ticks** = 1 sixteenth note
-
-## Examples
-
-### Music Sequencer
-
-```javascript
-const timer = new Timer({
-  bpm: 120,
-  divisions: 24,  // 24 ticks per beat
-  bars: 8,
-  callback: (event) => {
-    // Trigger samples based on bar/division
-    if (event.divisionsElapsed === 0) {
-      playDrumKit.kick()
-    }
-    if (event.divisionsElapsed === 12) {
-      playDrumKit.snare()
-    }
-  }
-})
-
-await timer.startTimer()
-```
-
-### Metronome
-
-```javascript
-const metronome = new Timer({
-  bpm: 90,
-  divisions: 4,   // 4 beats per bar
-  callback: (event) => {
-    const isDownBeat = event.divisionsElapsed === 0
-    playTone(isDownBeat ? 880 : 440)
-  }
-})
-
-// Tap tempo detection
-document.addEventListener('keydown', () => {
-  const newBpm = metronome.tapTempo()
-  if (newBpm > -1) console.log('BPM:', newBpm)
-})
-
-await metronome.startTimer()
-```
-
-### MIDI Synchronization
-
-```javascript
-const timer = new Timer({ bpm: 120 })
-let midiClockStarted = false
-
-midiInput.onmidimessage = (message) => {
-  const [status, , ] = message.data
-  
-  if (status === 0xFA) {
-    // MIDI START
-    if (!midiClockStarted) {
-      timer.startTimer()
-      midiClockStarted = true
-    }
-  } else if (status === 0xFC) {
-    // MIDI STOP
-    timer.stopTimer()
-    midiClockStarted = false
-  } else if (status === 0xF8) {
-    // MIDI CLOCK (24 per quarter note)
-    timer.externalTrigger(true)
-  }
-}
-```
+5. Visual feedback (bright glowing pulse) on every tick
+6. Optional audio feedback for auditory confirmation
 
 ## Building
 
@@ -486,9 +335,13 @@ MIT
 ## Notes
 
 - **MIDI Compatibility**: Division count defaults to 24 to match [MIDI 1.0 spec](https://en.wikipedia.org/wiki/MIDI_clock) (24 ticks per quarter note)
+- **Visual Feedback**: Every timer tick is accompanied by a bright, glowing pulse indicator for immediate visual feedback
+- **Audio Feedback**: Optional tick audio (1200Hz sine wave, 30ms duration) can be enabled for auditory feedback on each tick
 - **WebAssembly Future**: Potential for [WebAssembly](https://developer.mozilla.org/en-US/docs/WebAssembly) backend for even greater precision
 - **Audio Context Limitations**: iOS requires [AudioContext](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext) creation within user-triggered events; the timer will auto-resume suspended contexts
 - **Maximum Bars**: Timer supports a maximum of 32 bars per loop (MAX_BARS_ALLOWED)
+- **Worker Type Display**: Timer type is displayed on the GUI for easy identification of which timing backend is in use
+- **Semantic HTML**: The GUI uses semantic HTML elements (header, section, article) for better accessibility
 
 ## References
 
