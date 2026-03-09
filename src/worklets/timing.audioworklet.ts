@@ -1,4 +1,5 @@
-interface TimingMessage {
+// Interface type for message structure - TypeScript only, stripped from output
+type TimingMessage = {
 	command?: string
 	event?: string
 	accurateTiming?: boolean

@@ -1,11 +1,11 @@
-interface TimingMessage {
+type TimingMessage = {
     command?: string;
     event?: string;
     accurateTiming?: boolean;
     interval?: number;
     time?: number;
     intervals?: number;
-}
+};
 /**
  * Wrap the above in a single call
  * @param {AudioContext} context
