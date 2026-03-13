@@ -7,6 +7,7 @@ import { defineConfig } from 'vite'
  */
 export default defineConfig({
   build: {
+    assetsDir: '', // Put assets at root instead of in subfolder
     lib: {
       entry: './index.ts',
       name: 'Netronome',
@@ -23,13 +24,15 @@ export default defineConfig({
         {
           format: 'es',
           entryFileNames: 'index.es.js',
-          chunkFileNames: '[name].es.js'
+          chunkFileNames: '[name].es.js',
+          assetFileNames: '[name].[ext]'
         },
         {
           format: 'umd',
           name: 'Netronome',
           entryFileNames: 'index.js',
-          chunkFileNames: '[name].js'
+          chunkFileNames: '[name].js',
+          assetFileNames: '[name].[ext]'
         }
       ]
     }
