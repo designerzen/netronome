@@ -5,7 +5,8 @@ export { default as RollingTimeWorkerWrapper } from './workers/timing.rolling.wo
 export { default as SetIntervalWorkerWrapper } from './workers/timing.setinterval.worker.ts?worker'
 export { default as SetTimeoutWorkerWrapper } from './workers/timing.settimeout.worker.ts?worker'
 
-export { default as TimingWorkletNode, createTimingWorklet } from './worklets/timing.audioworklet'
+// Note: TimingWorkletNode is dynamically imported in timer.ts for lazy loading
+// so we don't export it statically here to avoid vite bundling conflicts
 
 // Export timer type constants for convenient access
 export {

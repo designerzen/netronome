@@ -16,11 +16,23 @@ const getProcessorURL = async (): Promise<string> => {
 		return processorURL
 	}
 	
-	// Dynamically import and get raw code
-	const processorCode = await import('./timing.audioworklet-processor.js?raw').then(m => m.default)
-	const blob = new Blob([processorCode], { type: 'application/javascript' })
-	processorURL = URL.createObjectURL(blob)
-	return processorURL
+	try {
+		// Try to dynamically import and get raw code with ?raw query
+		let processorCode: string
+		try {
+			processorCode = await import('./timing.audioworklet-processor.js?raw').then(m => m.default)
+		} catch (e) {
+			// Fallback: fetch the file directly
+			const response = await fetch(new URL('./timing.audioworklet-processor.js', import.meta.url).href)
+			processorCode = await response.text()
+		}
+		
+		const blob = new Blob([processorCode], { type: 'application/javascript' })
+		processorURL = URL.createObjectURL(blob)
+		return processorURL
+	} catch (error) {
+		throw error
+	}
 }
 
 /**
@@ -32,9 +44,7 @@ export const createTimingWorklet = async (context: AudioContext): Promise<Timing
 	try{
 		const url = await getProcessorURL()
 		await context.audioWorklet.addModule(url)
-		console.info("AudioWorklet processor loaded successfully from blob")
 	}catch(error){
-		console.error("AudioWorklet processor failed to load:", error)
 		throw new Error(`Failed to load AudioWorklet processor: ${error instanceof Error ? error.message : String(error)}`)
 	}
 
@@ -113,22 +123,17 @@ export default class TimingAudioWorkletNode extends AudioWorkletNode {
 	onMessageReceived(event: MessageEvent<TimingMessage>): void {
 		const data = event.data
 		
-		// console.log("onmessage:", this.onmessage,{data, event})
 		switch(data.event)
 		{
 			case EVENT_TICK:
-				//console.log("AudioWorkletNode:onmessage:", data)
 				break
 
 			default:
-				// console.error("AudioWorkletNode:onmessage unknown:",data.event,EVENT_TICK === data.event,EVENT_TICK, {event})
 		}
 
 		if ( this.onmessage )
 		{
 			this.onmessage(event)
-		}else{
-			// console.info("no external callback", this)
 		}
 	}
 }

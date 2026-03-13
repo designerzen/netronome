@@ -55,7 +55,6 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 	start(interval = 250, accurateTiming = true) {
 		
 		this.gap = interval * 0.001 // 000
-		console.error("Timer audioWorklet start with interval "+this.gap)
 
 		if (!this.isRunning)
 		{   
@@ -93,7 +92,6 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 
 		const sourceLimit = Math.min(inputs.length, outputs.length)
 
-		// console.log(currentTime, "Processor:process", {sourceLimit, inputs, outputs, parameters})
 		// Wwrite the output into each of the outputs
 		// By default, the node has single input and output.
 		for (let inputIndex = 0; inputIndex < sourceLimit; ++inputIndex) {
@@ -101,11 +99,10 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 			const output = outputs[inputIndex]
 
 			if (input.length === 0){
-				//console.error("Processor:FAIL NO INPUT", {input, inputs, output, outputs, parameters})
+				console.error("Processor:FAIL NO INPUT", {input, inputs, output, outputs, parameters})
 				continue
 			}
 
-			//console.log(inputIndex, "> Processor:process", {input, inputs, output, outputs, parameters})
 			for (let channel = 0; channel < output.length; ++channel) {
 				output[channel].set(input[channel])
 			}
@@ -122,10 +119,7 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 
 		if (this.isRunning && currentTime >= this.nextInterval )
 		{
-			// console.info("Timer Processor:BEAT", this.nextInterval, currentTime )
 			this.onTick(compensatedGap)
-		// }else{
-			// console.info("Timer WAITING ", this.nextInterval - currentTime )
 		}
 		
 		// check to see the time has elapsed
@@ -150,7 +144,6 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 		const data = event.data
 
 		// Handling data from the node.
-		// console.log("SampleAudioWorkletProcessor:MESSAGE:", {event}, this)
 		switch (data.command) {
 			
 			// 
@@ -182,8 +175,7 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 				break
 
 			default:
-				console.log('[Processor:Received] ' , event)
-				console.error("SampleAudioWorkletProcessor: Unknown message type", event)
+				console.error("Processor:FAIL NO INPUT", {input, inputs, output, outputs, parameters})
 		}
 	}
 }
