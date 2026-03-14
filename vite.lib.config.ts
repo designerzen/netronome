@@ -11,7 +11,8 @@ export default defineConfig({
     lib: {
       entry: './index.ts',
       name: 'Netronome',
-      fileName: (format) => `index.${format === 'es' ? 'es' : 'js'}`
+      formats: ['es', 'umd'],
+      fileName: (format) => `index.${format === 'es' ? 'es.js' : 'js'}`
     },
     target: 'es2020',
     minify: 'terser',
@@ -19,22 +20,7 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: false, // Don't empty dist - HTML files are already there from app build
     rollupOptions: {
-      external: [],
-      output: [
-        {
-          format: 'es',
-          entryFileNames: 'index.es.js',
-          chunkFileNames: '[name].es.js',
-          assetFileNames: '[name].[ext]'
-        },
-        {
-          format: 'umd',
-          name: 'Netronome',
-          entryFileNames: 'index.js',
-          chunkFileNames: '[name].js',
-          assetFileNames: '[name].[ext]'
-        }
-      ]
+      external: []
     }
   }
 })

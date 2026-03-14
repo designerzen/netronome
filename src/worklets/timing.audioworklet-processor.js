@@ -99,7 +99,7 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 			const output = outputs[inputIndex]
 
 			if (input.length === 0){
-				console.error("Processor:FAIL NO INPUT", {input, inputs, output, outputs, parameters})
+				//console.error("Processor:FAIL NO INPUT", {input, inputs, output, outputs, parameters})
 				continue
 			}
 
