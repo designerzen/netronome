@@ -15,15 +15,6 @@ export type WorkerWrapper = {
   new(): Worker;
 }
 
-// AudioWorklet globals
-declare function registerProcessor(name: string, processorConstructor: typeof AudioWorkletProcessor): void;
-
-interface AudioWorkletProcessor {
-  port: MessagePort;
-  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
-}
-
-declare class AudioWorkletProcessor {
-  port: MessagePort;
-  constructor();
-}
+// AudioWorklet globals - these are provided by the browser at runtime
+// Do NOT define interface here as it can contaminate bundled code
+declare function registerProcessor(name: string, processorConstructor: any): void;
