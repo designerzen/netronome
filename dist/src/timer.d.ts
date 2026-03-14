@@ -260,7 +260,7 @@ export default class Timer {
      * Reset the timer and start from the beginning
      */
     resetTimer(): void;
-    start(): Promise<{
+    start(callback?: (event: TimerCallbackEvent) => void): Promise<{
         time: number;
         interval: number;
         worker: TimingHandler;
