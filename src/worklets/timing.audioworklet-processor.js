@@ -55,7 +55,7 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 	start(interval = 250, accurateTiming = true) {
 		
 		this.gap = interval * 0.001 // 000
-		console.error("Timer audioWorklet start with interval "+this.gap)
+		// console.error("Timer audioWorklet start with interval "+this.gap)
 
 		if (!this.isRunning)
 		{   
@@ -93,19 +93,16 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 
 		const sourceLimit = Math.min(inputs.length, outputs.length)
 
-		// console.log(currentTime, "Processor:process", {sourceLimit, inputs, outputs, parameters})
 		// Wwrite the output into each of the outputs
 		// By default, the node has single input and output.
 		for (let inputIndex = 0; inputIndex < sourceLimit; ++inputIndex) {
 			const input = inputs[inputIndex]
 			const output = outputs[inputIndex]
 
-			if (input.length === 0){
-				//console.error("Processor:FAIL NO INPUT", {input, inputs, output, outputs, parameters})
+			if (input.length === 0) {
 				continue
 			}
 
-			//console.log(inputIndex, "> Processor:process", {input, inputs, output, outputs, parameters})
 			for (let channel = 0; channel < output.length; ++channel) {
 				output[channel].set(input[channel])
 			}
