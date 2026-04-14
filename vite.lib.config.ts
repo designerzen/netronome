@@ -10,7 +10,7 @@ export default defineConfig({
   build: {
     assetsDir: '', // Put assets at root instead of in subfolder
     lib: {
-      entry: './index.ts',
+      entry: './src/index.ts',
       name: 'Netronome',
       formats: ['es', 'umd'],
       fileName: (format) => `index.${format === 'es' ? 'es.js' : 'js'}`
