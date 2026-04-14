@@ -11,8 +11,8 @@ import {
     SetTimeoutWorkerWrapper
 } from '../src/timer-worker-types.js'
 import { default as TimingWorkletNode, createTimingWorklet } from '../src/worklets/timing.audioworklet.ts'
-import { MultiTimerManager } from '../public/multi-timer.ts'
-import { MultiTimerChart } from '../public/multi-timer-chart.ts'
+import { MultiTimerManager } from '../src/multi-timer.ts'
+import { MultiTimerChart } from '../src/multi-timer-chart.ts'
 
 const WORKER_TYPES: Record<string, string> = {
     audiocontext: AudioContextWorkerWrapper,

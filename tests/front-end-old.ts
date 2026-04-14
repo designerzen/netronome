@@ -10,8 +10,8 @@ import {
 } from '../src/timer-worker-types.js'
 import { CMD_ADJUST_DRIFT } from '../src/timer-event-types.js'
 import { PerformanceChart } from '../public/performance-chart.js'
-import { MultiTimerManager } from '../public/multi-timer.ts'
-import { MultiTimerChart } from '../public/multi-timer-chart.ts'
+import { MultiTimerManager } from '../src/multi-timer.ts'
+import { MultiTimerChart } from '../src/multi-timer-chart.ts'
 
 interface TimerEvent {
     timePassed: number

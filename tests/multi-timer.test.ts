@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { MultiTimerManager } from '../public/multi-timer.ts'
-import { MultiTimerChart } from '../public/multi-timer-chart.ts'
+import { MultiTimerManager } from '../src/multi-timer.ts'
+import { MultiTimerChart } from '../src/multi-timer-chart.ts'
 
 // Skip chart tests if running in Node environment (without DOM)
 const skipChartTests = typeof document === 'undefined'

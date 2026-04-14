@@ -1,7 +1,7 @@
 // Netronome - Unified Timer Management
 import AudioTimer from '../src/timer-audio.ts'
-import { MultiTimerManager } from '../public/multi-timer.ts'
-import { MultiTimerChart } from '../public/multi-timer-chart.ts'
+import { MultiTimerManager } from '../src/multi-timer.ts'
+import { MultiTimerChart } from '../src/multi-timer-chart.ts'
 
 interface TimerEvent {
     timePassed: number
