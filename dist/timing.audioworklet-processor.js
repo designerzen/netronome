@@ -54,7 +54,7 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 	 */
 	start(interval = 250, accurateTiming = true) {
 		
-		this.gap = interval * 0.001
+		this.gap = interval * 0.001 // 000
 
 		if (!this.isRunning)
 		{   
@@ -98,7 +98,8 @@ class TimingAudioWorkletProcessor extends AudioWorkletProcessor {
 			const input = inputs[inputIndex]
 			const output = outputs[inputIndex]
 
-			if (input.length === 0) {
+			if (input.length === 0){
+				//console.error("Processor:FAIL NO INPUT", {input, inputs, output, outputs, parameters})
 				continue
 			}
 

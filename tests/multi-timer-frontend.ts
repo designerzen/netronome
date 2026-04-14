@@ -6,12 +6,11 @@
 import { createTimer } from '../src/timer-global.ts'
 import {
     AudioContextWorkerWrapper,
-    TimingWorkletNode,
-    createTimingWorklet,
     RollingTimeWorkerWrapper,
     SetIntervalWorkerWrapper,
     SetTimeoutWorkerWrapper
 } from '../src/timer-worker-types.js'
+import { default as TimingWorkletNode, createTimingWorklet } from '../src/worklets/timing.audioworklet.ts'
 import { MultiTimerManager } from '../public/multi-timer.ts'
 import { MultiTimerChart } from '../public/multi-timer-chart.ts'
 

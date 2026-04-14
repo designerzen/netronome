@@ -423,13 +423,11 @@ export default class Timer {
 
                 default:
                     (this as Record<string, unknown>)[key] = (options as Record<string, unknown>)[key]
-                    console.warn("Timer option", key, (options as Record<string, unknown>)[key])
             }
         }
 
         // 
         const typeStr = typeof options.type === 'string' ? options.type : ''
-        console.info("Timer:", options.type, this.timingWorkHandler, { isWorklet, options })
 
         if (isWorklet) {
             this.loaded = this.setTimingWorklet(
@@ -473,9 +471,7 @@ export default class Timer {
             if (this.#running) {
                 // disconnect but don't destroy
                 this.disconnectWorker(this.timingWorkHandler, false)
-                console.info("timer runinng, bypassing... ")
             } else {
-                console.info("bypassing... ignored")
             }
 
         } else {
@@ -485,9 +481,7 @@ export default class Timer {
             this.#bypassed = false
             if (this.#running) {
                 this.startTimer()
-                console.info("restarting timer... ")
             } else {
-                console.info("undoing bypass... ignored")
             }
         }
 
@@ -574,11 +568,11 @@ export default class Timer {
 
             // console.error(type, "timer.audioworklet", {module, audioContext}, this.timingWorker ) 
             if (wasRunning) {
-                this.startTimer()
+                // Pass the stored callback to ensure it's re-registered with the new worklet
+                await this.startTimer(this.callback)
             }
             return this.timingWorkHandler
         } catch (error) {
-            console.error("Failed to initialize AudioWorklet timer:", error)
             this.isCompatible = false
             throw error
         }
@@ -599,7 +593,6 @@ export default class Timer {
         try {
             // Handle Worker factory from URL-based imports (default for production)
             if (typeof type === 'function') {
-                console.debug('Loading worker from factory')
                 return type()
             }
             // Fallback: Handle URL strings for flexibility
@@ -610,14 +603,12 @@ export default class Timer {
                     const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`
                     workerUrl = new URL(type, baseUrl).href
                 }
-                console.debug('Loading worker from URL:', workerUrl)
                 return new Worker(workerUrl, { type: 'module' })
             }
             else {
                 throw new Error(`Invalid worker type: expected function or string, got ${typeof type}`)
             }
         } catch (error) {
-            console.error('Failed to create worker:', type, error)
             throw error
         }
     }
@@ -657,10 +648,9 @@ export default class Timer {
 
 
             if (wasRunning) {
-                console.info("Starting timer worker", type, this.timingWorkHandler)
-                this.startTimer()
+                // Pass the stored callback to ensure it's re-registered with the new worker
+                await this.startTimer(this.callback)
             } else {
-                console.info("Awaiting timer worker", type, this.timingWorkHandler)
             }
 
             return this.timingWorkHandler
@@ -668,7 +658,6 @@ export default class Timer {
         } catch (error) {
 
             this.isCompatible = false
-            console.error("Timing WORKER FAILED TO LOAD", type, error)
         }
         return null
     }
@@ -708,7 +697,6 @@ export default class Timer {
             }
 
             const wasRunning = this.#running
-            console.info(`Switching timer type from current to ${timerType} (was running: ${wasRunning})`)
 
             // Stop the timer if it's running
             if (wasRunning) {
@@ -730,15 +718,12 @@ export default class Timer {
             // Restart the timer if it was running before
             if (wasRunning) {
                 await this.startTimer()
-                console.info(`Timer resumed with new type: ${timerType}`)
             } else {
-                console.info(`Timer type switched to ${timerType}`)
             }
 
             return true
 
         } catch (error) {
-            console.error(`Failed to switch timer type to ${timerType}:`, error)
             this.isCompatible = false
             throw error
         }
@@ -754,27 +739,25 @@ export default class Timer {
     connectWorker(worker: TimingHandler): void {
 
         if (!worker) {
-            throw new Error("Timing Worker was not defined - please check paths " + worker)
+            throw new Error("Timing Worker was not defined - please check paths " + worker);
         }
 
         // now hook into our worker bee and watch for timing changes
         (worker as any).onmessage = (e: MessageEvent<any>) => {
 
-            const time = this.now
-            const data = e.data
+            const time = this.now;
+            const data = e.data;
 
             switch (data.event) {
                 case EVENT_READY:
-                    //console.log("EVENT_READY", {time, data}) 
-                    break
+                    break;
 
                 case EVENT_STARTING:
                     // save start time
-                    this.startTime = time
-                    this.#running = true
-                    this.resetTimer()
-                    //console.log("EVENT_STARTING", {time:data.time, startTime})
-                    break
+                    this.startTime = time;
+                    this.#running = true;
+                    this.resetTimer();
+                    break;
 
                 case EVENT_TICK:
                     // const timeBetweenPeriod = this.timeBetween * 0.001
@@ -795,13 +778,12 @@ export default class Timer {
                     // this.onTick(timePassed,expected, drift, level, intervals, lag)
 
                     // timingWorker.postMessage({command:CMD_UPDATE, time:currentTime, interval})
-                    this.createTick(data.intervals, data.time)
-                    break
+                    this.createTick(data.intervals, data.time);
+                    break;
 
                 default:
-                    console.log("message: ", e, time)
             }
-        }
+        };
 
         // Worker Loading Error!
         (worker as any).onerror = (event: ErrorEvent) => {
@@ -814,7 +796,6 @@ export default class Timer {
                 stack: event.error?.stack,
                 time: this.now
             }
-            console.error("Timer:Worker error", event, errorDetails)
             if (worker) {
                 (worker as any).postMessage(errorDetails)
             }
@@ -862,9 +843,10 @@ export default class Timer {
         this.divisionsElapsed = 0
     }
 
-    async start(): Promise<{ time: number; interval: number; worker: TimingHandler }> {
-        return this.startTimer(this.callback)
+    async start(callback?: (event: TimerCallbackEvent) => void): Promise<{ time: number; interval: number; worker: TimingHandler }> {
+        return this.startTimer(callback ?? this.callback)
     }
+
     async stop(): Promise<{ currentTime: number; worker: TimingHandler }> {
         return this.stopTimer()
     }
@@ -929,8 +911,6 @@ export default class Timer {
 
         // send command to worker... options
         this.postMessage(payload)
-
-        // console.log("Timer Starting...", { payload, timingWorker: this.timingWorkHandler} )
 
         return {
             time: currentTime,
@@ -1108,8 +1088,7 @@ export default class Timer {
         lag: number = 0
     ): void {
 
-        //console.info("Timer:onTick", {timePassed, expected, drift, level, intervals, lag} )
-        this.lastRecordedTime = timePassed
+        this.lastRecordedTime = timePassed;
 
         // check if bar has completed
         if (++this.divisionsElapsed >= this.divisions) {

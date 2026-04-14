@@ -14,7 +14,8 @@ export const SetIntervalWorkerWrapper = () =>
 export const SetTimeoutWorkerWrapper = () =>
     new Worker(new URL('./workers/timing.settimeout.worker.ts', import.meta.url), { type: 'module' })
 
-export { default as TimingWorkletNode, createTimingWorklet } from './worklets/timing.audioworklet'
+// Note: TimingWorkletNode is dynamically imported in timer.ts for lazy loading
+// so we don't export it statically here to avoid vite bundling conflicts
 
 // Export timer type constants for convenient access
 export {

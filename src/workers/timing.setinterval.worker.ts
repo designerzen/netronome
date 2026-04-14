@@ -3,7 +3,7 @@ import {
 	EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 } from '../timer-event-types'
 
-interface WorkerMessage {
+type WorkerMessage = {
 	command: string
 	interval?: number
 	accurateTiming?: boolean
@@ -107,7 +107,6 @@ self.onmessage = (e: MessageEvent<WorkerMessage>): void => {
         case CMD_START:
             accurateTiming = data.accurateTiming || false    
             start(data.interval || 250)
-            console.log("starting at tempo", data.interval)
            
 			break
 
@@ -116,7 +115,6 @@ self.onmessage = (e: MessageEvent<WorkerMessage>): void => {
             break
 
         case CMD_UPDATE:
-			console.log("changing tempo", data.interval)
             start(data.interval || 250)
             break
 

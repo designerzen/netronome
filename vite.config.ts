@@ -16,10 +16,16 @@ export default defineConfig({
   },
   build: {
     // Build demo/test application with HTML entry points
+    assetsDir: '', // Put assets at root instead of in subfolder
     rollupOptions: {
       input: {
         main: './index.html',
         'multi-timer': './multi-timer.html'
+      },
+      output: {
+        assetFileNames: '[name].[ext]',
+        entryFileNames: '[name].js',
+        chunkFileNames: '[name].js'
       }
     },
     target: 'es2020',

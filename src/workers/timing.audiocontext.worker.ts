@@ -8,14 +8,14 @@ import {
 	EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK
 } from '../timer-event-types'
 
-interface WorkerMessage {
+type WorkerMessage = {
 	command: string
 	interval?: number
 	accurateTiming?: boolean
 	drift?: number
 }
 
-interface WorkerEvent {
+type WorkerEvent = {
 	event: string
 	time?: number
 	intervals?: number

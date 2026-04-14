@@ -8,10 +8,12 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   base: './',
   build: {
+    assetsDir: '', // Put assets at root instead of in subfolder
     lib: {
       entry: './index.ts',
       name: 'Netronome',
-      fileName: (format) => `index.${format === 'es' ? 'es' : 'js'}`
+      formats: ['es', 'umd'],
+      fileName: (format) => `index.${format === 'es' ? 'es.js' : 'js'}`
     },
     target: 'es2020',
     minify: 'terser',
