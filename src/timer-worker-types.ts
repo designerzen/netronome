@@ -1,9 +1,18 @@
-// All available timing worker implementations using ?worker
-// Vite will automatically bundle these as separate worker files
-export { default as AudioContextWorkerWrapper } from './workers/timing.audiocontext.worker.ts?worker'
-export { default as RollingTimeWorkerWrapper } from './workers/timing.rolling.worker.ts?worker'
-export { default as SetIntervalWorkerWrapper } from './workers/timing.setinterval.worker.ts?worker'
-export { default as SetTimeoutWorkerWrapper } from './workers/timing.settimeout.worker.ts?worker'
+// All available timing worker implementations
+// Uses the cross-bundler `new URL(..., import.meta.url)` pattern
+// Compatible with Vite, Parcel, Webpack 5, Rollup, and esbuild
+
+export const AudioContextWorkerWrapper = () =>
+    new Worker(new URL('./workers/timing.audiocontext.worker.ts', import.meta.url), { type: 'module' })
+
+export const RollingTimeWorkerWrapper = () =>
+    new Worker(new URL('./workers/timing.rolling.worker.ts', import.meta.url), { type: 'module' })
+
+export const SetIntervalWorkerWrapper = () =>
+    new Worker(new URL('./workers/timing.setinterval.worker.ts', import.meta.url), { type: 'module' })
+
+export const SetTimeoutWorkerWrapper = () =>
+    new Worker(new URL('./workers/timing.settimeout.worker.ts', import.meta.url), { type: 'module' })
 
 export { default as TimingWorkletNode, createTimingWorklet } from './worklets/timing.audioworklet'
 

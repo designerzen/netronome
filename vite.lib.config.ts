@@ -6,6 +6,7 @@ import { defineConfig } from 'vite'
  * This builds AFTER the app build, so we don't empty dist
  */
 export default defineConfig({
+  base: './',
   build: {
     lib: {
       entry: './index.ts',
@@ -23,15 +24,27 @@ export default defineConfig({
         {
           format: 'es',
           entryFileNames: 'index.es.js',
-          chunkFileNames: '[name].es.js'
+          chunkFileNames: '[name].es.js',
+          assetFileNames: 'workers/[name][extname]'
         },
         {
           format: 'umd',
           name: 'Netronome',
           entryFileNames: 'index.js',
-          chunkFileNames: '[name].js'
+          chunkFileNames: '[name].js',
+          assetFileNames: 'workers/[name][extname]'
         }
       ]
+    }
+  },
+  worker: {
+    format: 'es',
+    rollupOptions: {
+      output: {
+        // Remove content hashes from worker filenames for predictable paths
+        entryFileNames: 'workers/[name].js',
+        chunkFileNames: 'workers/[name].js'
+      }
     }
   }
 })

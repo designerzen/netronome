@@ -597,10 +597,10 @@ export default class Timer {
         }
         
         try {
-            // Handle Worker constructor from ?worker imports (default for production)
+            // Handle Worker factory from URL-based imports (default for production)
             if (typeof type === 'function') {
-                console.debug('Loading worker from constructor')
-                return new type()
+                console.debug('Loading worker from factory')
+                return type()
             }
             // Fallback: Handle URL strings for flexibility
             else if (typeof type === 'string') {
