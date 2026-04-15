@@ -1,18 +1,23 @@
 // All available timing worker implementations
-// Uses the cross-bundler `new URL(..., import.meta.url)` pattern
-// Compatible with Vite, Parcel, Webpack 5, Rollup, and esbuild
+// Uses Vite inline worker syntax to inline worker code as blob URLs
+// This ensures consumers (Parcel, Webpack, etc.) see self-contained blob URLs
+
+import AudioContextWorker from './workers/timing.audiocontext.worker.ts?worker&inline'
+import RollingTimeWorker from './workers/timing.rolling.worker.ts?worker&inline'
+import SetIntervalWorker from './workers/timing.setinterval.worker.ts?worker&inline'
+import SetTimeoutWorker from './workers/timing.settimeout.worker.ts?worker&inline'
 
 export const AudioContextWorkerWrapper = () =>
-    new Worker(new URL('./workers/timing.audiocontext.worker.ts', import.meta.url), { type: 'module' })
+    new AudioContextWorker()
 
 export const RollingTimeWorkerWrapper = () =>
-    new Worker(new URL('./workers/timing.rolling.worker.ts', import.meta.url), { type: 'module' })
+    new RollingTimeWorker()
 
 export const SetIntervalWorkerWrapper = () =>
-    new Worker(new URL('./workers/timing.setinterval.worker.ts', import.meta.url), { type: 'module' })
+    new SetIntervalWorker()
 
 export const SetTimeoutWorkerWrapper = () =>
-    new Worker(new URL('./workers/timing.settimeout.worker.ts', import.meta.url), { type: 'module' })
+    new SetTimeoutWorker()
 
 // Note: TimingWorkletNode is dynamically imported in timer.ts for lazy loading
 // so we don't export it statically here to avoid vite bundling conflicts
