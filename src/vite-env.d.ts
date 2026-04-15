@@ -5,6 +5,11 @@ declare module "*?url" {
   export default content;
 }
 
+declare module "*?raw" {
+  const content: string;
+  export default content;
+}
+
 // Worker factory type - returns a new Worker instance
 export type WorkerWrapper = () => Worker
 
