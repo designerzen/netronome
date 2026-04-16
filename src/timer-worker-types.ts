@@ -1,18 +1,23 @@
 // All available timing worker implementations
-// Uses the cross-bundler `new URL(..., import.meta.url)` pattern
-// Compatible with Vite, Parcel, Webpack 5, Rollup, and esbuild
+// Exports createWorker helper for consumers to create workers with explicit paths
+// This avoids import.meta.url issues in non-Vite bundlers like Parcel
 
-export const AudioContextWorkerWrapper = () =>
-    new Worker(new URL('./workers/timing.audiocontext.worker.ts', import.meta.url), { type: 'module' })
+import type { WorkerWrapper } from './vite-env'
 
-export const RollingTimeWorkerWrapper = () =>
-    new Worker(new URL('./workers/timing.rolling.worker.ts', import.meta.url), { type: 'module' })
+// Placeholder workers - these are resolved at runtime via setTimingWorker(string)
+// For the app (Vite), these will be inlined via the app's vite config
+// For consumers, they can use createWorker() or provide their own worker URLs
 
-export const SetIntervalWorkerWrapper = () =>
-    new Worker(new URL('./workers/timing.setinterval.worker.ts', import.meta.url), { type: 'module' })
+export const createWorker = (workerPath: string): Worker | null => {
+    if (typeof window === 'undefined') return null
+    return new Worker(workerPath, { type: 'module' })
+}
 
-export const SetTimeoutWorkerWrapper = () =>
-    new Worker(new URL('./workers/timing.settimeout.worker.ts', import.meta.url), { type: 'module' })
+// Export null wrappers - consumers use setTimingWorker('path/to/worker.js')
+export const AudioContextWorkerWrapper: WorkerWrapper | null = null
+export const RollingTimeWorkerWrapper: WorkerWrapper | null = null
+export const SetIntervalWorkerWrapper: WorkerWrapper | null = null
+export const SetTimeoutWorkerWrapper: WorkerWrapper | null = null
 
 // Note: TimingWorkletNode is dynamically imported in timer.ts for lazy loading
 // so we don't export it statically here to avoid vite bundling conflicts

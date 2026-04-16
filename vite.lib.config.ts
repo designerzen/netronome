@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { resolve } from 'path'
 
 /**
  * Library build configuration for Netronome
@@ -10,7 +11,15 @@ export default defineConfig({
   build: {
     assetsDir: '', // Put assets at root instead of in subfolder
     lib: {
-      entry: './src/index.ts',
+      entry: {
+        index: './src/index.ts',
+        'timing-worklet': './src/worklets/timing.audioworklet.ts',
+        // Add workers as library entry points
+        'workers/timing.audiocontext.worker': './src/workers/timing.audiocontext.worker.ts',
+        'workers/timing.rolling.worker': './src/workers/timing.rolling.worker.ts',
+        'workers/timing.setinterval.worker': './src/workers/timing.setinterval.worker.ts',
+        'workers/timing.settimeout.worker': './src/workers/timing.settimeout.worker.ts',
+      },
       name: 'Netronome',
       formats: ['es'],
       fileName: 'index.es'
@@ -24,20 +33,12 @@ export default defineConfig({
       external: [],
       output: {
         format: 'es',
-        entryFileNames: 'index.es.js',
-        chunkFileNames: '[name].es.js',
-        assetFileNames: 'workers/[name][extname]'
+        entryFileNames: '[name].js',
+        chunkFileNames: '[name].js'
       }
     }
   },
   worker: {
-    format: 'es',
-    rollupOptions: {
-      output: {
-        // Remove content hashes from worker filenames for predictable paths
-        entryFileNames: 'workers/[name].js',
-        chunkFileNames: 'workers/[name].js'
-      }
-    }
+    format: 'es'
   }
 })

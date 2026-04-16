@@ -1,6 +1,8 @@
-export declare const AudioContextWorkerWrapper: () => Worker;
-export declare const RollingTimeWorkerWrapper: () => Worker;
-export declare const SetIntervalWorkerWrapper: () => Worker;
-export declare const SetTimeoutWorkerWrapper: () => Worker;
+import type { WorkerWrapper } from './vite-env';
+export declare const createWorker: (workerPath: string) => Worker | null;
+export declare const AudioContextWorkerWrapper: WorkerWrapper | null;
+export declare const RollingTimeWorkerWrapper: WorkerWrapper | null;
+export declare const SetIntervalWorkerWrapper: WorkerWrapper | null;
+export declare const SetTimeoutWorkerWrapper: WorkerWrapper | null;
 export { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, TIMER_TYPES, isValidTimerType, getTimerTypeDescription, type TimerType, } from './timer-types';
 //# sourceMappingURL=timer-worker-types.d.ts.map

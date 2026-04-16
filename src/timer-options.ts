@@ -1,5 +1,5 @@
 import type { TimerOptions } from "./timer-interfaces"
-import { AudioContextWorkerWrapper } from "./timer-worker-types"
+import { TIMER_TYPE_AUDIO_WORKLET } from "./timer-types"
 
 // Re-export for backward compatibility
 export type { TimerOptions }
@@ -18,10 +18,8 @@ export const DEFAULT_TIMER_OPTIONS: TimerOptions = {
 
     contexts: null,
 
-    // can be base64 encoded too
-    type: AudioContextWorkerWrapper,
-    // type:AUDIOTIMER_WORKLET_URI,
-    // processor:AUDIOTIMER_PROCESSOR_URI,
+    // Use audio-worklet by default (doesn't need external worker file)
+    type: TIMER_TYPE_AUDIO_WORKLET,
 
     callback: null,
 
