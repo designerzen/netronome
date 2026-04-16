@@ -656,8 +656,7 @@ class Timer {
           return await this.setTimingWorker(workerClass);
         }
       }
-      const imports = await Promise.resolve().then(() => timing_audioworklet);
-      const { createTimingWorklet: createTimingWorklet2 } = imports;
+      const { createTimingWorklet: createTimingWorklet2 } = await Promise.resolve().then(() => timing_audioworklet);
       if (!audioContext) {
         throw new Error("AudioContext is required for AudioWorklet");
       }
@@ -1265,4 +1264,4 @@ export {
   tapTempo,
   tapTempoQuick
 };
-//# sourceMappingURL=index.es.js.map
+//# sourceMappingURL=index.js.map

@@ -16,16 +16,16 @@
   "bugs": {
     "url": "https://github.com/designerzen/netronome/issues"
   },
-  "main": "./dist/index.es.js",
-  "module": "./dist/index.es.js",
+  "source": "src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.es.js",
-      "default": "./dist/index.es.js"
-    },
-    "./package.json": "./package.json"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
   },
   "files": [
     "dist",

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 
 /**
  * Library build configuration for Netronome
- * Single ES bundle with all code inlined for Parcel compatibility
+ * Single bundle with all code inlined for Parcel compatibility
  */
 export default defineConfig({
   base: './',
@@ -11,7 +11,7 @@ export default defineConfig({
       entry: './src/index.ts',
       name: 'Netronome',
       formats: ['es'],
-      fileName: 'index.es'
+      fileName: 'index'
     },
     target: 'es2020',
     minify: false,

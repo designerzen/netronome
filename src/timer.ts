@@ -554,9 +554,8 @@ export default class Timer {
                 }
             }
 
-            // Dynamically import the worklet based on type parameter
-            const imports = await import('./worklets/timing.audioworklet.js')
-            const { createTimingWorklet } = imports
+            // Import worklet directly - inlined by Rollup for consumer bundlers
+            const { createTimingWorklet } = await import('./worklets/timing.audioworklet.js')
 
             // Ensure we have an AudioContext
             if (!audioContext) {
