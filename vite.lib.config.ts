@@ -1,44 +1,30 @@
 import { defineConfig } from 'vite'
-import { resolve } from 'path'
 
 /**
  * Library build configuration for Netronome
- * Generates ES module bundle for npm distribution
- * This builds AFTER the app build, so we don't empty dist
+ * Single bundle with inlined imports for Parcel compatibility
  */
 export default defineConfig({
   base: './',
   build: {
-    assetsDir: '', // Put assets at root instead of in subfolder
+    assetsDir: '',
     lib: {
-      entry: {
-        index: './src/index.ts',
-        'timing-worklet': './src/worklets/timing.audioworklet.ts',
-        // Add workers as library entry points
-        'workers/timing.audiocontext.worker': './src/workers/timing.audiocontext.worker.ts',
-        'workers/timing.rolling.worker': './src/workers/timing.rolling.worker.ts',
-        'workers/timing.setinterval.worker': './src/workers/timing.setinterval.worker.ts',
-        'workers/timing.settimeout.worker': './src/workers/timing.settimeout.worker.ts',
-      },
+      entry: './src/index.ts',
       name: 'Netronome',
       formats: ['es'],
       fileName: 'index.es'
     },
     target: 'es2020',
-    minify: 'terser',
+    minify: false,
     sourcemap: true,
     outDir: 'dist',
-    emptyOutDir: false, // Don't empty dist - HTML files are already there from app build
+    emptyOutDir: false,
     rollupOptions: {
       external: [],
       output: {
         format: 'es',
-        entryFileNames: '[name].js',
-        chunkFileNames: '[name].js'
+        inlineDynamicImports: true
       }
     }
-  },
-  worker: {
-    format: 'es'
   }
 })
