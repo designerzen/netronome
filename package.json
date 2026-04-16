@@ -20,13 +20,6 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    }
-  },
   "files": [
     "dist",
     "README.md",
@@ -53,7 +46,7 @@
   },
   "scripts": {
     "cert": "mkcert -install && mkcert -cert-file ./certs/localhost.pem -key-file ./certs/localhost-key.pem localhost 127.0.0.1 ::1",
-    "build": "vite build && vite build -c vite.lib.config.ts --mode lib && tsc -p tsconfig.lib.json --emitDeclarationOnly",
+    "build": "vite build && vite build -c vite.lib.config.ts --mode lib && tsc -p tsconfig.lib.json --emitDeclarationOnly && node -e \"require('fs').copyFileSync('dist/main.js','dist/timing-worklet.js')\"",
     "start": "vite",
     "dev": "vite",
     "preview": "vite preview",

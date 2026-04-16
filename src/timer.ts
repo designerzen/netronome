@@ -20,12 +20,14 @@ import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ROLLING,
 
 import type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces'
 
+// Static import worklet for Parcel compatibility - avoids dynamic import
+import { createTimingWorklet } from './worklets/timing.audioworklet'
+
 
 export const MAX_BARS_ALLOWED = 32
 
 // Re-export interfaces for external use
 export type { ITimerControl, TimingHandler, TimerCallbackEvent }
-
 
 /**
  * Resolve a timer type string to its corresponding Worker constructor
@@ -554,15 +556,12 @@ export default class Timer {
                 }
             }
 
-            // Import worklet directly - inlined by Rollup for consumer bundlers
-            const { createTimingWorklet } = await import('./worklets/timing.audioworklet.js')
-
             // Ensure we have an AudioContext
             if (!audioContext) {
                 throw new Error('AudioContext is required for AudioWorklet')
             }
 
-            this.timingWorkHandler = await createTimingWorklet(audioContext)
+            this.timingWorkHandler = await createTimingWorklet(audioContext) as unknown as TimingHandler
             this.isCompatible = true
 
             // console.error(type, "timer.audioworklet", {module, audioContext}, this.timingWorker ) 
