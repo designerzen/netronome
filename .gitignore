@@ -29,6 +29,7 @@ pnpm-debug.log*
 
 # Build output
 # dist/
+lib/
 
 # Vite
 .vite/

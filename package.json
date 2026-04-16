@@ -16,19 +16,20 @@
   "bugs": {
     "url": "https://github.com/designerzen/netronome/issues"
   },
-  "main": "./dist/index.es.js",
-  "module": "./dist/index.es.js",
-  "types": "./dist/index.d.ts",
+  "main": "./lib/index.js",
+  "module": "./lib/index.es.js",
+  "types": "./lib/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.es.js",
-      "default": "./dist/index.es.js"
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.es.js",
+      "require": "./lib/index.js",
+      "default": "./lib/index.js"
     },
     "./package.json": "./package.json"
   },
   "files": [
-    "dist",
+    "lib",
     "README.md",
     "LICENSE"
   ],
@@ -53,7 +54,7 @@
   },
   "scripts": {
     "cert": "mkcert -install && mkcert -cert-file ./certs/localhost.pem -key-file ./certs/localhost-key.pem localhost 127.0.0.1 ::1",
-    "build": "vite build && tsc --emitDeclarationOnly --outDir dist && vite build -c vite.lib.config.ts --mode lib && node -e \"require('fs').copyFileSync('dist/timing.audioworklet.js','dist/timing-worklet.js')\"",
+    "build": "vite build && vite build -c vite.lib.config.ts --mode lib && tsc -p tsconfig.lib.json --emitDeclarationOnly",
     "start": "vite",
     "dev": "vite",
     "preview": "vite preview",

@@ -1,30 +1,38 @@
 import { defineConfig } from 'vite'
+import path from 'path'
 
 /**
  * Library build configuration for Netronome
- * Single bundle with inlined imports for Parcel compatibility
+ * Single ES bundle with all code (including worklet) inlined.
+ * Output goes to lib/ so npm consumers get only library files,
+ * while the demo app lives in dist/ for GitHub Pages.
  */
 export default defineConfig({
   base: './',
+  resolve: {
+    alias: {
+      'netronome/timing-worklet': path.resolve(__dirname, './src/worklets/timing.audioworklet.ts'),
+    }
+  },
   build: {
-    assetsDir: '',
     lib: {
       entry: './src/index.ts',
       name: 'Netronome',
-      formats: ['es'],
-      fileName: 'index.es'
+      formats: ['es', 'umd'],
+      fileName: (format) => format === 'es' ? 'index.es.js' : 'index.js',
     },
     target: 'es2020',
-    minify: false,
+    minify: 'terser',
     sourcemap: true,
-    outDir: 'dist',
-    emptyOutDir: false,
+    outDir: 'lib',
+    emptyOutDir: true,
     rollupOptions: {
-      external: [],
       output: {
-        format: 'es',
-        inlineDynamicImports: true
+        inlineDynamicImports: true,
       }
     }
+  },
+  worker: {
+    format: 'es',
   }
 })
