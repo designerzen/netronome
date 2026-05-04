@@ -13,8 +13,23 @@ const hasLocalCerts = fs.existsSync(keyFile) && fs.existsSync(certFile)
 export default defineConfig({
   base: '/netronome/',
   plugins: [],
+  resolve: {
+    alias: {
+      // For app build, resolve worker imports to inline version
+      './workers/timing.audiocontext.worker.ts': '/src/workers/timing.audiocontext.worker.ts?worker&inline',
+      './workers/timing.rolling.worker.ts': '/src/workers/timing.rolling.worker.ts?worker&inline',
+      './workers/timing.setinterval.worker.ts': '/src/workers/timing.setinterval.worker.ts?worker&inline',
+      './workers/timing.settimeout.worker.ts': '/src/workers/timing.settimeout.worker.ts?worker&inline',
+    }
+  },
   worker: {
-    format: 'es'
+    format: 'es',
+    // Build workers as separate files
+    rollupOptions: {
+      output: {
+        entryFileNames: 'timing.[name].worker.js'
+      }
+    }
   },
   build: {
     // Build demo/test application with HTML entry points

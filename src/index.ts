@@ -17,20 +17,20 @@
  */
 
 // Main Timer class and types
-export { default as Timer } from './src/timer'
-export type { ITimerControl, TimingHandler, TimerCallbackEvent } from './src/timer-interfaces'
+export { default as Timer } from './timer'
+export type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces'
 
 // Timer configuration and options
-export * from './src/timer-types'
-export * from './src/timer-options'
-export * from './src/timer-event-types'
-export * from './src/timer-interfaces'
+export * from './timer-types'
+export * from './timer-options'
+export * from './timer-event-types'
+export * from './timer-interfaces'
 
 // Event types and worker types
-export * from './src/timer-worker-types'
+export * from './timer-worker-types'
 
 // Time utilities for calculations
-export * from './src/time-utils'
+export * from './time-utils'
 
 // Global timer functions (singleton pattern)
 export { 
@@ -40,10 +40,10 @@ export {
   setTimeBetween, 
   resetTimer, 
   getTimer 
-} from './src/timer-global'
+} from './timer-global'
 
 // AudioContext-based timer
-export { default as AudioTimer } from './src/timer-audio'
+export { default as AudioTimer } from './timer-audio'
 
 // Tap tempo detection
-export { tapTempoQuick, tapTempo } from './src/tap-tempo'
+export { tapTempoQuick, tapTempo } from './tap-tempo'

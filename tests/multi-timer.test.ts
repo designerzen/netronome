@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { MultiTimerManager } from '../public/multi-timer.ts'
-import { MultiTimerChart } from '../public/multi-timer-chart.ts'
+import { MultiTimerManager } from '../src/multi-timer.ts'
+import { MultiTimerChart } from '../src/multi-timer-chart.ts'
 import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_ROLLING } from '../src/timer-types'
 
 // Skip chart tests if running in Node environment (without DOM)

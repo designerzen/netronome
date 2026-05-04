@@ -8,13 +8,13 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   build: {
     lib: {
-      entry: './index.ts',
+      entry: './src/index.ts',
       name: 'Netronome',
       formats: ['es'],
       fileName: () => 'index.js'
     },
     target: 'es2020',
-    minify: 'terser',
+    minify: false,
     sourcemap: true,
     outDir: 'dist',
     emptyOutDir: true,

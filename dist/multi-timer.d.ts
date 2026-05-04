@@ -2,17 +2,18 @@
  * Multi-Timer Manager
  * Manages multiple timers running simultaneously with individual configurations
  */
-interface MultiTimerConfig {
+import { type TimerType } from '../src/timer-types';
+export interface MultiTimerConfig {
     id: string;
     bpm: number;
     name: string;
-    workerType: string;
+    workerType: TimerType;
     color: string;
     startTime?: number;
     epoch?: string;
     metronomeEnabled?: boolean;
 }
-interface MultiTimerData {
+export interface MultiTimerData {
     id: string;
     lag: number;
     timePassed: number;
@@ -40,5 +41,4 @@ export declare class MultiTimerManager {
     private notifyListeners;
 }
 export declare const multiTimerManager: MultiTimerManager;
-export {};
 //# sourceMappingURL=multi-timer.d.ts.map

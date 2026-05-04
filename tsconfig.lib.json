@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declarationDir": "./lib",
+    "outDir": "./lib"
+  },
+  "include": [
+    "src/index.ts",
+    "src/timer.ts",
+    "src/timer-*.ts",
+    "src/time-utils.ts",
+    "src/tap-tempo.ts",
+    "src/epoch.ts",
+    "src/vite-env.d.ts",
+    "src/workers/**/*",
+    "src/worklets/**/*"
+  ],
+  "exclude": [
+    "src/multi-timer.ts",
+    "src/multi-timer-chart.ts"
+  ]
+}

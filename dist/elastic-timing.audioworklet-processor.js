@@ -1,2 +1,321 @@
-const t='/**\n * High-Resolution Clock AudioWorklet Processor with Buffer Underrun Detection\n * Implements the worklet-clock pattern from openDAW\n * Uses SharedArrayBuffer + Atomics for cross-thread high-resolution timing\n * \n * @class ElasticTimingAudioWorkletProcessor\n * @extends AudioWorkletProcessor\n */\n\n// Embedded event type constants\nconst CMD_INITIALISE = "init"\nconst CMD_START = "start"\nconst CMD_STOP = "stop"\nconst CMD_UPDATE = "update"\nconst CMD_ADJUST_DRIFT = "adjust-drift"\nconst CMD_SET_HR_BUFFER = "set-hr-buffer"\nconst EVENT_READY = "ready"\nconst EVENT_STARTING = "starting"\nconst EVENT_STOPPING = "stopping"\nconst EVENT_TICK = "tick"\nconst EVENT_UNDERRUN = "underrun"\nconst EVENT_METRICS = "metrics"\n\nclass ElasticTimingAudioWorkletProcessor extends AudioWorkletProcessor {\n\t\n\tisAvailable = false\n\tisRunning = false\n\taccurateTiming = true\n\t\n\tstartTime = -1\n\tnextInterval = -1\n\tgap = 0\n\tintervals = 0\n\tcumulativeDrift = 0\n\t\n\t// High-resolution clock members\n\t#hrBuffer = null\n\t#int32View = null\n\t#float64View = null\n\t#lastSeenRequestCounter = 0\n\t#prevStartCounter = 0\n\t#prevEndCounter = 0\n\t#prevStartTs = 0\n\t#prevEndTs = 0\n\t\n\t// Performance metrics\n\t#perfBuffer = new Float32Array(256)\n\t#perfWriteIndex = 0\n\t#underrunCount = 0\n\t#maxRenderTime = 0\n\t#metricsInterval = 0\n\t#metricsNextReport = 0\n\t\n\tget elapsed() {\n\t\treturn currentTime - this.startTime\n\t}\n\t\n\tconstructor() {\n\t\tsuper()\n\t\tthis.port.onmessage = this.onmessage.bind(this)\n\t\tthis.postMessage({ event: EVENT_READY })\n\t}\n\t\n\tpostMessage(message) {\n\t\tthis.port.postMessage(message)\n\t}\n\t\n\treset() {\n\t\tthis.intervals = 0\n\t\tthis.#underrunCount = 0\n\t\tthis.#maxRenderTime = 0\n\t\tthis.#perfWriteIndex = 0\n\t\tthis.#perfBuffer.fill(0)\n\t}\n\t\n\t/**\n\t * Initialize the high-resolution buffer from the worker\n\t * @param {SharedArrayBuffer} buffer - Shared buffer from worker\n\t */\n\tsetHRBuffer(buffer) {\n\t\tthis.#hrBuffer = buffer\n\t\tthis.#int32View = new Int32Array(buffer)\n\t\tthis.#float64View = new Float64Array(buffer)\n\t\tthis.#lastSeenRequestCounter = this.#int32View[0]\n\t}\n\t\n\t/**\n\t * Request timestamps from high-resolution worker\n\t * Increments request counter to signal worker\n\t */\n\t#signalHRWorker() {\n\t\tif (!this.#int32View) return\n\t\tAtomics.add(this.#int32View, 0, 1)\n\t}\n\t\n\t/**\n\t * Get high-resolution start timestamp from previous render\n\t * Returns elapsed time of the previous render or 0 if invalid\n\t */\n\t#getHRTimestamp() {\n\t\tif (!this.#int32View) return 0\n\t\t\n\t\t// Read current response counters\n\t\tconst startCounter = Atomics.load(this.#int32View, 1)\n\t\tconst endCounter = Atomics.load(this.#int32View, 2)\n\t\tconst startTs = this.#float64View[2]\n\t\tconst endTs = this.#float64View[3]\n\t\t\n\t\t// Validate that we have matching start/end pair from same render\n\t\tlet elapsed = 0\n\t\tif (this.#prevStartCounter > 0 && this.#prevEndCounter === this.#prevStartCounter + 1) {\n\t\t\telapsed = this.#prevEndTs - this.#prevStartTs\n\t\t\tif (elapsed > this.#maxRenderTime) {\n\t\t\t\tthis.#maxRenderTime = elapsed\n\t\t\t}\n\t\t} else if (this.#prevStartCounter > 0) {\n\t\t\t// Mismatched counters indicate underrun\n\t\t\tthis.#underrunCount++\n\t\t}\n\t\t\n\t\t// Store current for next frame\n\t\tthis.#prevStartCounter = startCounter\n\t\tthis.#prevEndCounter = endCounter\n\t\tthis.#prevStartTs = startTs\n\t\tthis.#prevEndTs = endTs\n\t\t\n\t\treturn elapsed\n\t}\n\t\n\t/**\n\t * Update performance metrics and detect underruns\n\t * @param {number} elapsed - Render time in seconds\n\t */\n\t#recordMetrics(elapsed) {\n\t\tconst elapsedMs = elapsed * 1000\n\t\tthis.#perfBuffer[this.#perfWriteIndex] = elapsedMs\n\t\tthis.#perfWriteIndex = (this.#perfWriteIndex + 1) % this.#perfBuffer.length\n\t\t\n\t\t// Report metrics periodically (every ~1 second at 48kHz)\n\t\tif (this.accurateTiming && this.#metricsInterval > 0) {\n\t\t\tif (currentTime >= this.#metricsNextReport) {\n\t\t\t\tthis.#reportMetrics()\n\t\t\t\tthis.#metricsNextReport = currentTime + this.#metricsInterval\n\t\t\t}\n\t\t}\n\t}\n\t\n\t/**\n\t * Calculate and report performance metrics\n\t */\n\t#reportMetrics() {\n\t\tconst avgElapsed = this.#perfBuffer.reduce((a, b) => a + b, 0) / this.#perfBuffer.length\n\t\tconst cpuLoad = (avgElapsed / (128 / 48000)) * 100 // Assuming 48kHz, 128 sample buffer\n\t\t\n\t\tthis.postMessage({\n\t\t\tevent: EVENT_METRICS,\n\t\t\tavgRenderTime: avgElapsed,\n\t\t\tmaxRenderTime: this.#maxRenderTime,\n\t\t\tcpuLoad: Math.min(cpuLoad, 100),\n\t\t\tunderruns: this.#underrunCount\n\t\t})\n\t}\n\t\n\t/**\n\t * Start the timer with optional metrics reporting\n\t * @param {Number} interval in milliseconds\n\t * @param {Boolean} accurateTiming \n\t * @param {Number} metricsInterval optional interval for metrics (0 = disabled)\n\t */\n\tstart(interval = 250, accurateTiming = true, metricsInterval = 0) {\n\t\tthis.gap = interval * 0.001\n\t\tthis.#metricsInterval = metricsInterval * 0.001 // Convert to seconds\n\t\t\n\t\tif (!this.isRunning) {\n\t\t\tthis.startTime = currentTime\n\t\t\tthis.nextInterval = this.startTime + this.gap\n\t\t\tthis.isRunning = true\n\t\t\tthis.#metricsNextReport = currentTime + this.#metricsInterval\n\t\t\tthis.postMessage({ event: EVENT_STARTING, time: 0, intervals: this.intervals })\n\t\t} else {\n\t\t\tthis.nextInterval = currentTime + this.gap\n\t\t}\n\t\t\n\t\t// Signal worker for initial timestamp\n\t\tif (this.#hrBuffer) {\n\t\t\tthis.#signalHRWorker()\n\t\t}\n\t\t\n\t\tthis.postMessage({ event: EVENT_TICK, time: this.elapsed, intervals: this.intervals })\n\t}\n\t\n\t/**\n\t * Stop the timer\n\t */\n\tstop() {\n\t\tthis.isRunning = false\n\t\tthis.postMessage({ event: EVENT_STOPPING, time: this.elapsed, intervals: this.intervals })\n\t\t\n\t\t// Report final metrics\n\t\tif (this.#hrBuffer) {\n\t\t\tthis.#reportMetrics()\n\t\t}\n\t}\n\t\n\t/**\n\t * AudioWorklet process callback - called per render quantum (128 samples)\n\t */\n\tprocess(inputs, outputs, parameters) {\n\t\tconst sourceLimit = Math.min(inputs.length, outputs.length)\n\t\t\n\t\t// Pass audio through\n\t\tfor (let inputIndex = 0; inputIndex < sourceLimit; ++inputIndex) {\n\t\t\tconst input = inputs[inputIndex]\n\t\t\tconst output = outputs[inputIndex]\n\t\t\t\n\t\t\tif (input.length === 0) {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\t\n\t\t\tfor (let channel = 0; channel < output.length; ++channel) {\n\t\t\t\toutput[channel].set(input[channel])\n\t\t\t}\n\t\t}\n\t\t\n\t\t// Get high-resolution timing if available\n\t\tconst hrElapsed = this.#getHRTimestamp()\n\t\tif (this.#hrBuffer) {\n\t\t\tthis.#recordMetrics(hrElapsed)\n\t\t}\n\t\t\n\t\t// Apply drift compensation\n\t\tlet compensatedGap = this.gap\n\t\tif (this.accurateTiming && this.cumulativeDrift !== 0) {\n\t\t\tconst dampedDrift = this.cumulativeDrift * 0.1\n\t\t\tcompensatedGap = Math.max(this.gap - dampedDrift, 0.001)\n\t\t}\n\t\t\n\t\t// Detect underrun: if render took longer than gap, we\'ve fallen behind\n\t\tif (this.#hrBuffer && hrElapsed > 0 && hrElapsed > this.gap) {\n\t\t\tthis.postMessage({\n\t\t\t\tevent: EVENT_UNDERRUN,\n\t\t\t\trenderTime: hrElapsed,\n\t\t\t\ttargetGap: this.gap,\n\t\t\t\tintervals: this.intervals\n\t\t\t})\n\t\t}\n\t\t\n\t\t// Process timing ticks\n\t\tif (this.isRunning && currentTime >= this.nextInterval) {\n\t\t\tthis.onTick(compensatedGap)\n\t\t}\n\t\t\n\t\treturn true\n\t}\n\t\n\t/**\n\t * Handle timing tick\n\t */\n\tonTick(compensatedGap = this.gap) {\n\t\tthis.intervals++\n\t\tthis.nextInterval = currentTime + compensatedGap\n\t\t\n\t\t// Signal worker for new timestamp\n\t\tif (this.#hrBuffer) {\n\t\t\tthis.#signalHRWorker()\n\t\t}\n\t\t\n\t\tthis.postMessage({ event: EVENT_TICK, time: this.elapsed, intervals: this.intervals })\n\t}\n\t\n\t/**\n\t * Handle messages from main thread\n\t */\n\tonmessage(event) {\n\t\tconst data = event.data\n\t\t\n\t\tswitch (data.command) {\n\t\t\tcase EVENT_READY:\n\t\t\t\tbreak\n\t\t\t\n\t\t\tcase CMD_INITIALISE:\n\t\t\t\tbreak\n\t\t\t\n\t\t\tcase CMD_START:\n\t\t\t\tthis.accurateTiming = data.accurateTiming ?? false\n\t\t\t\tthis.start(data.interval, this.accurateTiming, data.metricsInterval)\n\t\t\t\tbreak\n\t\t\t\n\t\t\tcase CMD_STOP:\n\t\t\t\tthis.stop()\n\t\t\t\tbreak\n\t\t\t\n\t\t\tcase CMD_UPDATE:\n\t\t\t\tthis.start(data.interval, this.accurateTiming, data.metricsInterval)\n\t\t\t\tbreak\n\t\t\t\n\t\t\tcase CMD_ADJUST_DRIFT:\n\t\t\t\tif (data.drift !== undefined) {\n\t\t\t\t\tthis.cumulativeDrift = data.drift\n\t\t\t\t}\n\t\t\t\tbreak\n\t\t\t\n\t\t\tcase CMD_SET_HR_BUFFER:\n\t\t\t\tif (data.buffer instanceof SharedArrayBuffer) {\n\t\t\t\t\tthis.setHRBuffer(data.buffer)\n\t\t\t\t}\n\t\t\t\tbreak\n\t\t\t\n\t\t\tdefault:\n\t\t\t\tconsole.error("ElasticTimingAudioWorkletProcessor: Unknown message", data.command)\n\t\t}\n\t}\n}\n\nconst ID = "elastic-timing-processor"\nregisterProcessor(ID, ElasticTimingAudioWorkletProcessor)\n';export{t as default};
+const elasticTiming_audioworkletProcessor = `/**
+ * High-Resolution Clock AudioWorklet Processor with Buffer Underrun Detection
+ * Implements the worklet-clock pattern from openDAW
+ * Uses SharedArrayBuffer + Atomics for cross-thread high-resolution timing
+ * 
+ * @class ElasticTimingAudioWorkletProcessor
+ * @extends AudioWorkletProcessor
+ */
+
+// Embedded event type constants
+const CMD_INITIALISE = "init"
+const CMD_START = "start"
+const CMD_STOP = "stop"
+const CMD_UPDATE = "update"
+const CMD_ADJUST_DRIFT = "adjust-drift"
+const CMD_SET_HR_BUFFER = "set-hr-buffer"
+const EVENT_READY = "ready"
+const EVENT_STARTING = "starting"
+const EVENT_STOPPING = "stopping"
+const EVENT_TICK = "tick"
+const EVENT_UNDERRUN = "underrun"
+const EVENT_METRICS = "metrics"
+
+class ElasticTimingAudioWorkletProcessor extends AudioWorkletProcessor {
+	
+	isAvailable = false
+	isRunning = false
+	accurateTiming = true
+	
+	startTime = -1
+	nextInterval = -1
+	gap = 0
+	intervals = 0
+	cumulativeDrift = 0
+	
+	// High-resolution clock members
+	#hrBuffer = null
+	#int32View = null
+	#float64View = null
+	#lastSeenRequestCounter = 0
+	#prevStartCounter = 0
+	#prevEndCounter = 0
+	#prevStartTs = 0
+	#prevEndTs = 0
+	
+	// Performance metrics
+	#perfBuffer = new Float32Array(256)
+	#perfWriteIndex = 0
+	#underrunCount = 0
+	#maxRenderTime = 0
+	#metricsInterval = 0
+	#metricsNextReport = 0
+	
+	get elapsed() {
+		return currentTime - this.startTime
+	}
+	
+	constructor() {
+		super()
+		this.port.onmessage = this.onmessage.bind(this)
+		this.postMessage({ event: EVENT_READY })
+	}
+	
+	postMessage(message) {
+		this.port.postMessage(message)
+	}
+	
+	reset() {
+		this.intervals = 0
+		this.#underrunCount = 0
+		this.#maxRenderTime = 0
+		this.#perfWriteIndex = 0
+		this.#perfBuffer.fill(0)
+	}
+	
+	/**
+	 * Initialize the high-resolution buffer from the worker
+	 * @param {SharedArrayBuffer} buffer - Shared buffer from worker
+	 */
+	setHRBuffer(buffer) {
+		this.#hrBuffer = buffer
+		this.#int32View = new Int32Array(buffer)
+		this.#float64View = new Float64Array(buffer)
+		this.#lastSeenRequestCounter = this.#int32View[0]
+	}
+	
+	/**
+	 * Request timestamps from high-resolution worker
+	 * Increments request counter to signal worker
+	 */
+	#signalHRWorker() {
+		if (!this.#int32View) return
+		Atomics.add(this.#int32View, 0, 1)
+	}
+	
+	/**
+	 * Get high-resolution start timestamp from previous render
+	 * Returns elapsed time of the previous render or 0 if invalid
+	 */
+	#getHRTimestamp() {
+		if (!this.#int32View) return 0
+		
+		// Read current response counters
+		const startCounter = Atomics.load(this.#int32View, 1)
+		const endCounter = Atomics.load(this.#int32View, 2)
+		const startTs = this.#float64View[2]
+		const endTs = this.#float64View[3]
+		
+		// Validate that we have matching start/end pair from same render
+		let elapsed = 0
+		if (this.#prevStartCounter > 0 && this.#prevEndCounter === this.#prevStartCounter + 1) {
+			elapsed = this.#prevEndTs - this.#prevStartTs
+			if (elapsed > this.#maxRenderTime) {
+				this.#maxRenderTime = elapsed
+			}
+		} else if (this.#prevStartCounter > 0) {
+			// Mismatched counters indicate underrun
+			this.#underrunCount++
+		}
+		
+		// Store current for next frame
+		this.#prevStartCounter = startCounter
+		this.#prevEndCounter = endCounter
+		this.#prevStartTs = startTs
+		this.#prevEndTs = endTs
+		
+		return elapsed
+	}
+	
+	/**
+	 * Update performance metrics and detect underruns
+	 * @param {number} elapsed - Render time in seconds
+	 */
+	#recordMetrics(elapsed) {
+		const elapsedMs = elapsed * 1000
+		this.#perfBuffer[this.#perfWriteIndex] = elapsedMs
+		this.#perfWriteIndex = (this.#perfWriteIndex + 1) % this.#perfBuffer.length
+		
+		// Report metrics periodically (every ~1 second at 48kHz)
+		if (this.accurateTiming && this.#metricsInterval > 0) {
+			if (currentTime >= this.#metricsNextReport) {
+				this.#reportMetrics()
+				this.#metricsNextReport = currentTime + this.#metricsInterval
+			}
+		}
+	}
+	
+	/**
+	 * Calculate and report performance metrics
+	 */
+	#reportMetrics() {
+		const avgElapsed = this.#perfBuffer.reduce((a, b) => a + b, 0) / this.#perfBuffer.length
+		const cpuLoad = (avgElapsed / (128 / 48000)) * 100 // Assuming 48kHz, 128 sample buffer
+		
+		this.postMessage({
+			event: EVENT_METRICS,
+			avgRenderTime: avgElapsed,
+			maxRenderTime: this.#maxRenderTime,
+			cpuLoad: Math.min(cpuLoad, 100),
+			underruns: this.#underrunCount
+		})
+	}
+	
+	/**
+	 * Start the timer with optional metrics reporting
+	 * @param {Number} interval in milliseconds
+	 * @param {Boolean} accurateTiming 
+	 * @param {Number} metricsInterval optional interval for metrics (0 = disabled)
+	 */
+	start(interval = 250, accurateTiming = true, metricsInterval = 0) {
+		this.gap = interval * 0.001
+		this.#metricsInterval = metricsInterval * 0.001 // Convert to seconds
+		
+		if (!this.isRunning) {
+			this.startTime = currentTime
+			this.nextInterval = this.startTime + this.gap
+			this.isRunning = true
+			this.#metricsNextReport = currentTime + this.#metricsInterval
+			this.postMessage({ event: EVENT_STARTING, time: 0, intervals: this.intervals })
+		} else {
+			this.nextInterval = currentTime + this.gap
+		}
+		
+		// Signal worker for initial timestamp
+		if (this.#hrBuffer) {
+			this.#signalHRWorker()
+		}
+		
+		this.postMessage({ event: EVENT_TICK, time: this.elapsed, intervals: this.intervals })
+	}
+	
+	/**
+	 * Stop the timer
+	 */
+	stop() {
+		this.isRunning = false
+		this.postMessage({ event: EVENT_STOPPING, time: this.elapsed, intervals: this.intervals })
+		
+		// Report final metrics
+		if (this.#hrBuffer) {
+			this.#reportMetrics()
+		}
+	}
+	
+	/**
+	 * AudioWorklet process callback - called per render quantum (128 samples)
+	 */
+	process(inputs, outputs, parameters) {
+		const sourceLimit = Math.min(inputs.length, outputs.length)
+		
+		// Pass audio through
+		for (let inputIndex = 0; inputIndex < sourceLimit; ++inputIndex) {
+			const input = inputs[inputIndex]
+			const output = outputs[inputIndex]
+			
+			if (input.length === 0) {
+				continue
+			}
+			
+			for (let channel = 0; channel < output.length; ++channel) {
+				output[channel].set(input[channel])
+			}
+		}
+		
+		// Get high-resolution timing if available
+		const hrElapsed = this.#getHRTimestamp()
+		if (this.#hrBuffer) {
+			this.#recordMetrics(hrElapsed)
+		}
+		
+		// Apply drift compensation
+		let compensatedGap = this.gap
+		if (this.accurateTiming && this.cumulativeDrift !== 0) {
+			const dampedDrift = this.cumulativeDrift * 0.1
+			compensatedGap = Math.max(this.gap - dampedDrift, 0.001)
+		}
+		
+		// Detect underrun: if render took longer than gap, we've fallen behind
+		if (this.#hrBuffer && hrElapsed > 0 && hrElapsed > this.gap) {
+			this.postMessage({
+				event: EVENT_UNDERRUN,
+				renderTime: hrElapsed,
+				targetGap: this.gap,
+				intervals: this.intervals
+			})
+		}
+		
+		// Process timing ticks
+		if (this.isRunning && currentTime >= this.nextInterval) {
+			this.onTick(compensatedGap)
+		}
+		
+		return true
+	}
+	
+	/**
+	 * Handle timing tick
+	 */
+	onTick(compensatedGap = this.gap) {
+		this.intervals++
+		this.nextInterval = currentTime + compensatedGap
+		
+		// Signal worker for new timestamp
+		if (this.#hrBuffer) {
+			this.#signalHRWorker()
+		}
+		
+		this.postMessage({ event: EVENT_TICK, time: this.elapsed, intervals: this.intervals })
+	}
+	
+	/**
+	 * Handle messages from main thread
+	 */
+	onmessage(event) {
+		const data = event.data
+		
+		switch (data.command) {
+			case EVENT_READY:
+				break
+			
+			case CMD_INITIALISE:
+				break
+			
+			case CMD_START:
+				this.accurateTiming = data.accurateTiming ?? false
+				this.start(data.interval, this.accurateTiming, data.metricsInterval)
+				break
+			
+			case CMD_STOP:
+				this.stop()
+				break
+			
+			case CMD_UPDATE:
+				this.start(data.interval, this.accurateTiming, data.metricsInterval)
+				break
+			
+			case CMD_ADJUST_DRIFT:
+				if (data.drift !== undefined) {
+					this.cumulativeDrift = data.drift
+				}
+				break
+			
+			case CMD_SET_HR_BUFFER:
+				if (data.buffer instanceof SharedArrayBuffer) {
+					this.setHRBuffer(data.buffer)
+				}
+				break
+			
+			default:
+				console.error("ElasticTimingAudioWorkletProcessor: Unknown message", data.command)
+		}
+	}
+}
+
+const ID = "elastic-timing-processor"
+registerProcessor(ID, ElasticTimingAudioWorkletProcessor)
+`;
+export {
+  elasticTiming_audioworkletProcessor as default
+};
 //# sourceMappingURL=elastic-timing.audioworklet-processor.js.map

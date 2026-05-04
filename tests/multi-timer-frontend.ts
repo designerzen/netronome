@@ -5,8 +5,8 @@
 
 import Timer from '../src/timer.ts'
 import AudioTimer from '../src/timer-audio.ts'
-import { MultiTimerManager } from '../public/multi-timer.ts'
-import { MultiTimerChart } from '../public/multi-timer-chart.ts'
+import { MultiTimerManager } from '../src/multi-timer.ts'
+import { MultiTimerChart } from '../src/multi-timer-chart.ts'
 import {
     TIMER_TYPE_AUDIO_CONTEXT,
     TIMER_TYPE_AUDIO_WORKLET,

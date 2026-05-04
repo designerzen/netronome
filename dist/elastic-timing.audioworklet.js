@@ -1,2 +1,297 @@
-var t,e,s,i,n,r,a,o,l=t=>{throw TypeError(t)},c=(t,e,s)=>e.has(t)||l("Cannot "+s),h=(t,e,s)=>(c(t,e,"read from private field"),s?s.call(t):e.get(t)),m=(t,e,s)=>e.has(t)?l("Cannot add the same private member more than once"):e instanceof WeakSet?e.add(t):e.set(t,s),u=(t,e,s,i)=>(c(t,e,"write to private field"),i?i.call(t,s):e.set(t,s),s);import{CMD_INITIALISE as d,CMD_START as f,CMD_STOP as p,CMD_UPDATE as w,CMD_ADJUST_DRIFT as g,EVENT_TICK as v}from"./index.js";let k=null;const M=async t=>{try{const e=await(async()=>{if(k)return k;const t=await import("./elastic-timing.audioworklet-processor.js").then(t=>t.default),e=new Blob([t],{type:"application/javascript"});return k=URL.createObjectURL(e),k})();await t.audioWorklet.addModule(e),console.info("ElasticTiming AudioWorklet processor loaded successfully from blob")}catch(e){throw console.error("ElasticTiming AudioWorklet processor failed to load:",e),new Error(`Failed to load ElasticTiming AudioWorklet processor: ${e instanceof Error?e.message:String(e)}`)}return new A(t)};class R{constructor(){m(this,t,null),m(this,e,null),m(this,s,null),m(this,i,null);const n=new Blob(["\n\t\tconst BUFFER_SIZE = 32; // 4 ints (0-3) + 2 floats (2-3)\n\t\tlet buffer = null;\n\t\tlet int32View = null;\n\t\tlet float64View = null;\n\t\tlet lastSeenRequest = 0;\n\n\t\tself.onmessage = (event) => {\n\t\t\tconst { command, buffer: sharedBuffer } = event.data;\n\n\t\t\tif (command === 'init' && sharedBuffer instanceof SharedArrayBuffer) {\n\t\t\t\tbuffer = sharedBuffer;\n\t\t\t\tint32View = new Int32Array(buffer);\n\t\t\t\tfloat64View = new Float64Array(buffer);\n\t\t\t\tlastSeenRequest = Atomics.load(int32View, 0);\n\t\t\t\tself.postMessage({ event: 'ready' });\n\t\t\t} else if (command === 'start') {\n\t\t\t\t// Worker loop: wait for signals from AudioWorklet\n\t\t\t\tself.postMessage({ event: 'started' });\n\t\t\t\tworkerLoop();\n\t\t\t} else if (command === 'stop') {\n\t\t\t\tself.postMessage({ event: 'stopped' });\n\t\t\t}\n\t\t};\n\n\t\tfunction workerLoop() {\n\t\t\twhile (true) {\n\t\t\t\t// Wait for AudioWorklet to signal (increment counter at int32[0])\n\t\t\t\tAtomics.wait(int32View, 0, lastSeenRequest);\n\t\t\t\tlastSeenRequest = Atomics.load(int32View, 0);\n\n\t\t\t\t// Determine if this is a start (odd) or end (even) signal\n\t\t\t\tconst isStart = (lastSeenRequest & 1) === 1;\n\n\t\t\t\t// Write high-resolution timestamp\n\t\t\t\tconst timestamp = performance.now();\n\t\t\t\t\n\t\t\t\tif (isStart) {\n\t\t\t\t\t// Start signal - write to slot 2\n\t\t\t\t\tfloat64View[2] = timestamp;\n\t\t\t\t\tAtomics.store(int32View, 1, lastSeenRequest); // Record which request this is for\n\t\t\t\t} else {\n\t\t\t\t\t// End signal - write to slot 3\n\t\t\t\t\tfloat64View[3] = timestamp;\n\t\t\t\t\tAtomics.store(int32View, 2, lastSeenRequest); // Record which request this is for\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\t"],{type:"application/javascript"});u(this,t,new Worker(URL.createObjectURL(n)))}initializeBuffer(){return u(this,e,new SharedArrayBuffer(32)),u(this,s,new Int32Array(h(this,e))),u(this,i,new Float64Array(h(this,e))),Atomics.store(h(this,s),0,0),Atomics.store(h(this,s),1,0),Atomics.store(h(this,s),2,0),h(this,e)}start(){if(!h(this,t)||!h(this,e))throw new Error("HRClockWorker not initialized");h(this,t).postMessage({command:"start",buffer:h(this,e)})}stop(){h(this,t)&&h(this,t).postMessage({command:"stop"})}terminate(){h(this,t)&&(h(this,t).terminate(),u(this,t,null))}getBuffer(){return h(this,e)}}t=new WeakMap,e=new WeakMap,s=new WeakMap,i=new WeakMap;class A extends AudioWorkletNode{constructor(t,e=!1,s=!0){if(super(t,"elastic-timing-processor"),m(this,n),m(this,r),m(this,a),m(this,o),u(this,n,10),u(this,r,1e3),u(this,a,null),u(this,o,{avgRenderTime:0,maxRenderTime:0,cpuLoad:0,underruns:0}),this.accurateTiming=!1,this.accurateTiming=e,this.port.onmessage=this.onMessageReceived.bind(this),this.postMessage({command:d,accurateTiming:e}),s&&"undefined"!=typeof SharedArrayBuffer){u(this,a,new R);const t=h(this,a).initializeBuffer();this.postMessage({command:"set-hr-buffer",buffer:t})}}static get parameterDescriptors(){return[{name:"rate",defaultValue:440,minValue:27.5,maxValue:4186.009}]}postMessage(t){return void 0!==t.interval&&u(this,n,t.interval),void 0!==t.metricsInterval&&u(this,r,t.metricsInterval),this.port.postMessage(t)}start(t,e){void 0!==t&&u(this,n,t),void 0!==e&&u(this,r,e),h(this,a)&&h(this,a).start(),this.postMessage({command:f,interval:h(this,n),metricsInterval:h(this,r),accurateTiming:this.accurateTiming})}stop(){h(this,a)&&h(this,a).stop(),this.postMessage({command:p})}getMetrics(){return{...h(this,o)}}update(t){this.postMessage({command:w,interval:t})}adjustDrift(t){this.postMessage({command:g,drift:t})}terminate(){h(this,a)&&(h(this,a).terminate(),u(this,a,null))}onMessageReceived(t){const e=t.data;switch(e.event){case v:break;case"underrun":const t={renderTime:e.renderTime??0,targetGap:e.targetGap??0,intervals:e.intervals??0};this.onunderrun&&this.onunderrun(t);break;case"metrics":u(this,o,{avgRenderTime:e.avgRenderTime??0,maxRenderTime:e.maxRenderTime??0,cpuLoad:e.cpuLoad??0,underruns:e.underruns??0}),this.onmetrics&&this.onmetrics(h(this,o))}this.onmessage&&this.onmessage(t)}}n=new WeakMap,r=new WeakMap,a=new WeakMap,o=new WeakMap;export{M as createElasticTimingWorklet,A as default};
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
+var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
+var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var _worker, _buffer, _int32View, _float64View, _interval, _metricsInterval, _hrWorker, _metrics;
+import { CMD_INITIALISE, CMD_START, CMD_STOP, CMD_UPDATE, CMD_ADJUST_DRIFT, EVENT_TICK } from "./index.js";
+let processorURL = null;
+const getProcessorURL = async () => {
+  if (processorURL) {
+    return processorURL;
+  }
+  const processorCode = await import("./elastic-timing.audioworklet-processor.js").then((m) => m.default);
+  const blob = new Blob([processorCode], { type: "application/javascript" });
+  processorURL = URL.createObjectURL(blob);
+  return processorURL;
+};
+const createElasticTimingWorklet = async (context) => {
+  try {
+    const url = await getProcessorURL();
+    await context.audioWorklet.addModule(url);
+    console.info("ElasticTiming AudioWorklet processor loaded successfully from blob");
+  } catch (error) {
+    console.error("ElasticTiming AudioWorklet processor failed to load:", error);
+    throw new Error(`Failed to load ElasticTiming AudioWorklet processor: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return new ElasticTimingAudioWorkletNode(context);
+};
+class HRClockWorker {
+  constructor() {
+    __privateAdd(this, _worker, null);
+    __privateAdd(this, _buffer, null);
+    __privateAdd(this, _int32View, null);
+    __privateAdd(this, _float64View, null);
+    const workerCode = `
+		const BUFFER_SIZE = 32; // 4 ints (0-3) + 2 floats (2-3)
+		let buffer = null;
+		let int32View = null;
+		let float64View = null;
+		let lastSeenRequest = 0;
+
+		self.onmessage = (event) => {
+			const { command, buffer: sharedBuffer } = event.data;
+
+			if (command === 'init' && sharedBuffer instanceof SharedArrayBuffer) {
+				buffer = sharedBuffer;
+				int32View = new Int32Array(buffer);
+				float64View = new Float64Array(buffer);
+				lastSeenRequest = Atomics.load(int32View, 0);
+				self.postMessage({ event: 'ready' });
+			} else if (command === 'start') {
+				// Worker loop: wait for signals from AudioWorklet
+				self.postMessage({ event: 'started' });
+				workerLoop();
+			} else if (command === 'stop') {
+				self.postMessage({ event: 'stopped' });
+			}
+		};
+
+		function workerLoop() {
+			while (true) {
+				// Wait for AudioWorklet to signal (increment counter at int32[0])
+				Atomics.wait(int32View, 0, lastSeenRequest);
+				lastSeenRequest = Atomics.load(int32View, 0);
+
+				// Determine if this is a start (odd) or end (even) signal
+				const isStart = (lastSeenRequest & 1) === 1;
+
+				// Write high-resolution timestamp
+				const timestamp = performance.now();
+				
+				if (isStart) {
+					// Start signal - write to slot 2
+					float64View[2] = timestamp;
+					Atomics.store(int32View, 1, lastSeenRequest); // Record which request this is for
+				} else {
+					// End signal - write to slot 3
+					float64View[3] = timestamp;
+					Atomics.store(int32View, 2, lastSeenRequest); // Record which request this is for
+				}
+			}
+		}
+		`;
+    const blob = new Blob([workerCode], { type: "application/javascript" });
+    __privateSet(this, _worker, new Worker(URL.createObjectURL(blob)));
+  }
+  /**
+   * Initialize the shared buffer (32 bytes)
+   * Layout:
+   *  int32[0]: request counter
+   *  int32[1]: start response counter
+   *  int32[2]: end response counter
+   *  float64[2]: start timestamp
+   *  float64[3]: end timestamp
+   */
+  initializeBuffer() {
+    __privateSet(this, _buffer, new SharedArrayBuffer(32));
+    __privateSet(this, _int32View, new Int32Array(__privateGet(this, _buffer)));
+    __privateSet(this, _float64View, new Float64Array(__privateGet(this, _buffer)));
+    Atomics.store(__privateGet(this, _int32View), 0, 0);
+    Atomics.store(__privateGet(this, _int32View), 1, 0);
+    Atomics.store(__privateGet(this, _int32View), 2, 0);
+    return __privateGet(this, _buffer);
+  }
+  /**
+   * Start the worker
+   */
+  start() {
+    if (!__privateGet(this, _worker) || !__privateGet(this, _buffer)) {
+      throw new Error("HRClockWorker not initialized");
+    }
+    __privateGet(this, _worker).postMessage({
+      command: "start",
+      buffer: __privateGet(this, _buffer)
+    });
+  }
+  /**
+   * Stop the worker
+   */
+  stop() {
+    if (__privateGet(this, _worker)) {
+      __privateGet(this, _worker).postMessage({ command: "stop" });
+    }
+  }
+  /**
+   * Terminate the worker and clean up
+   */
+  terminate() {
+    if (__privateGet(this, _worker)) {
+      __privateGet(this, _worker).terminate();
+      __privateSet(this, _worker, null);
+    }
+  }
+  /**
+   * Get the shared buffer for passing to AudioWorklet
+   */
+  getBuffer() {
+    return __privateGet(this, _buffer);
+  }
+}
+_worker = new WeakMap();
+_buffer = new WeakMap();
+_int32View = new WeakMap();
+_float64View = new WeakMap();
+class ElasticTimingAudioWorkletNode extends AudioWorkletNode {
+  constructor(audioContext, accurateTiming = false, enableHRClock = true) {
+    super(audioContext, "elastic-timing-processor");
+    __privateAdd(this, _interval);
+    __privateAdd(this, _metricsInterval);
+    __privateAdd(this, _hrWorker);
+    __privateAdd(this, _metrics);
+    __privateSet(this, _interval, 10);
+    __privateSet(this, _metricsInterval, 1e3);
+    __privateSet(this, _hrWorker, null);
+    __privateSet(this, _metrics, {
+      avgRenderTime: 0,
+      maxRenderTime: 0,
+      cpuLoad: 0,
+      underruns: 0
+    });
+    this.accurateTiming = false;
+    this.accurateTiming = accurateTiming;
+    this.port.onmessage = this.onMessageReceived.bind(this);
+    this.postMessage({ command: CMD_INITIALISE, accurateTiming });
+    if (enableHRClock && typeof SharedArrayBuffer !== "undefined") {
+      __privateSet(this, _hrWorker, new HRClockWorker());
+      const buffer = __privateGet(this, _hrWorker).initializeBuffer();
+      this.postMessage({
+        command: "set-hr-buffer",
+        buffer
+      });
+    }
+  }
+  static get parameterDescriptors() {
+    return [
+      {
+        name: "rate",
+        defaultValue: 440,
+        minValue: 27.5,
+        maxValue: 4186.009
+      }
+    ];
+  }
+  /**
+   * Pass message to Processor Worklet
+   */
+  postMessage(data) {
+    if (data.interval !== void 0) {
+      __privateSet(this, _interval, data.interval);
+    }
+    if (data.metricsInterval !== void 0) {
+      __privateSet(this, _metricsInterval, data.metricsInterval);
+    }
+    return this.port.postMessage(data);
+  }
+  /**
+   * Start the timer with optional high-resolution measurement
+   */
+  start(interval, metricsInterval) {
+    if (interval !== void 0) {
+      __privateSet(this, _interval, interval);
+    }
+    if (metricsInterval !== void 0) {
+      __privateSet(this, _metricsInterval, metricsInterval);
+    }
+    if (__privateGet(this, _hrWorker)) {
+      __privateGet(this, _hrWorker).start();
+    }
+    this.postMessage({
+      command: CMD_START,
+      interval: __privateGet(this, _interval),
+      metricsInterval: __privateGet(this, _metricsInterval),
+      accurateTiming: this.accurateTiming
+    });
+  }
+  /**
+   * Stop the timer
+   */
+  stop() {
+    if (__privateGet(this, _hrWorker)) {
+      __privateGet(this, _hrWorker).stop();
+    }
+    this.postMessage({ command: CMD_STOP });
+  }
+  /**
+   * Get current performance metrics
+   */
+  getMetrics() {
+    return { ...__privateGet(this, _metrics) };
+  }
+  /**
+   * Update BPM while maintaining accurate timing
+   */
+  update(interval) {
+    this.postMessage({ command: CMD_UPDATE, interval });
+  }
+  /**
+   * Adjust drift compensation
+   */
+  adjustDrift(drift) {
+    this.postMessage({ command: CMD_ADJUST_DRIFT, drift });
+  }
+  /**
+   * Terminate and clean up resources
+   */
+  terminate() {
+    if (__privateGet(this, _hrWorker)) {
+      __privateGet(this, _hrWorker).terminate();
+      __privateSet(this, _hrWorker, null);
+    }
+  }
+  /**
+   * Handle messages from the AudioWorklet processor
+   */
+  onMessageReceived(event) {
+    const data = event.data;
+    switch (data.event) {
+      case EVENT_TICK:
+        break;
+      case "underrun":
+        const underrunEvent = {
+          renderTime: data.renderTime ?? 0,
+          targetGap: data.targetGap ?? 0,
+          intervals: data.intervals ?? 0
+        };
+        if (this.onunderrun) {
+          this.onunderrun(underrunEvent);
+        }
+        break;
+      case "metrics":
+        __privateSet(this, _metrics, {
+          avgRenderTime: data.avgRenderTime ?? 0,
+          maxRenderTime: data.maxRenderTime ?? 0,
+          cpuLoad: data.cpuLoad ?? 0,
+          underruns: data.underruns ?? 0
+        });
+        if (this.onmetrics) {
+          this.onmetrics(__privateGet(this, _metrics));
+        }
+        break;
+    }
+    if (this.onmessage) {
+      this.onmessage(event);
+    }
+  }
+}
+_interval = new WeakMap();
+_metricsInterval = new WeakMap();
+_hrWorker = new WeakMap();
+_metrics = new WeakMap();
+export {
+  createElasticTimingWorklet,
+  ElasticTimingAudioWorkletNode as default
+};
 //# sourceMappingURL=elastic-timing.audioworklet.js.map

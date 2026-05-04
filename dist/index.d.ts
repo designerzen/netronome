@@ -15,15 +15,15 @@
  * })
  * ```
  */
-export { default as Timer } from './src/timer';
-export type { ITimerControl, TimingHandler, TimerCallbackEvent } from './src/timer-interfaces';
-export * from './src/timer-types';
-export * from './src/timer-options';
-export * from './src/timer-event-types';
-export * from './src/timer-interfaces';
-export * from './src/timer-worker-types';
-export * from './src/time-utils';
-export { createTimer, startTimer, stopTimer, setTimeBetween, resetTimer, getTimer } from './src/timer-global';
-export { default as AudioTimer } from './src/timer-audio';
-export { tapTempoQuick, tapTempo } from './src/tap-tempo';
+export { default as Timer } from './timer';
+export type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces';
+export * from './timer-types';
+export * from './timer-options';
+export * from './timer-event-types';
+export * from './timer-interfaces';
+export * from './timer-worker-types';
+export * from './time-utils';
+export { createTimer, startTimer, stopTimer, setTimeBetween, resetTimer, getTimer } from './timer-global';
+export { default as AudioTimer } from './timer-audio';
+export { tapTempoQuick, tapTempo } from './tap-tempo';
 //# sourceMappingURL=index.d.ts.map

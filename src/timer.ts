@@ -25,7 +25,6 @@ export const MAX_BARS_ALLOWED = 32
 
 // Re-export interfaces for external use
 
-
 /**
  * Resolve a timer type string to its corresponding Worker constructor
  * @param timerType Timer type ID string (e.g., TIMER_TYPE_AUDIO_CONTEXT)
@@ -140,6 +139,9 @@ export default class Timer {
     get isRunning():boolean{
         return this.#running
     }
+    set isRunning(value: boolean) {
+        this.#running = value
+    }
 
     get running(): boolean {
         return this.#running
@@ -155,6 +157,9 @@ export default class Timer {
 
     get isBypassed():boolean {
         return this.#bypassed
+    }
+    set isBypassed(value: boolean) {
+        this.#bypassed = value
     }
 
     /**
@@ -424,7 +429,7 @@ export default class Timer {
         this.swingOffset = value * this.divisions
     }
 
-    constructor(options: TimerOptions = DEFAULT_TIMER_OPTIONS, isWorklet: boolean = true) {
+    constructor(options: TimerOptions = DEFAULT_TIMER_OPTIONS, isWorklet?: boolean) {
         this.loaded = Promise.resolve()
         
         options = { ...DEFAULT_TIMER_OPTIONS, ...options }        
@@ -457,14 +462,17 @@ export default class Timer {
 
         // 
         const typeStr = typeof options.type === 'string' ? options.type : ''
-        const useWorklet = isWorklet || isWorkletTimerType(typeStr) || isFileWorklet(typeStr)
+        const prefersWorklet = isWorklet ?? (isWorkletTimerType(typeStr) || isFileWorklet(typeStr))
 
-        if (useWorklet) {
+        if (prefersWorklet && this.audioContext) {
             this.loaded = this.setTimingWorklet(
                 typeStr,
                 options.processor || '',
                 this.audioContext
             ) as any
+        } else if (prefersWorklet) {
+            // Delay backend attachment until an AudioContext is provided or a caller injects a handler.
+            this.loaded = Promise.resolve(null as any)
         } else {
             this.loaded = this.setTimingWorker(options.type || '') as any
         }
@@ -646,14 +654,14 @@ export default class Timer {
 
             // Dynamically import the worklet based on type parameter
             const createWorklet = type === TIMER_TYPE_ELASTIC_AUDIO_WORKLET
-                ? (await import('./worklets/elastic-timing.audioworklet.js')).createElasticTimingWorklet
-                : (await import('./worklets/timing.audioworklet.js')).createTimingWorklet
-
+                ? (await import('./worklets/elastic-timing.audioworklet')).createElasticTimingWorklet
+                : (await import('./worklets/timing.audioworklet')).createTimingWorklet
             // Ensure we have an AudioContext
             if (!audioContext) {
                 throw new Error('AudioContext is required for AudioWorklet')
             }
 
+            this.timingWorkHandler = await createWorklet(audioContext)
             this.timingWorkHandler = await createWorklet(audioContext)
             this.isCompatible = true
 

@@ -4,10 +4,11 @@
     "emitDeclarationOnly": true,
     "declaration": true,
     "declarationMap": true,
+    "declarationDir": "./dist",
     "outDir": "./dist",
-    "rootDir": ".",
+    "rootDir": "./src",
     "allowImportingTsExtensions": false
   },
-  "include": ["index.ts", "src/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tests/**/*", "vite.config.ts", "vite.lib.config.ts", "vite.workers.config.ts", "vitest.config.ts"]
 }
