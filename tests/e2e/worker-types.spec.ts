@@ -5,11 +5,26 @@ test.describe('Worker Type Behavior', () => {
   const TEST_DURATION_MS = 500
 
   const workerTypes = [
-    { name: 'audiocontext', label: 'Audio Context' },
-    { name: 'rolling', label: 'Rolling' },
-    { name: 'setinterval', label: 'SetInterval' },
-    { name: 'settimeout', label: 'SetTimeout' },
+    { name: 'audio-context', label: 'Audio Context Worker' },
+    { name: 'audio-worklet', label: 'Audio Worklet' },
+    { name: 'elastic-audio-worklet', label: 'Elastic Audio Worklet (SharedArrayBuffer)' },
+    { name: 'rolling', label: 'Rolling Worker' },
+    { name: 'set-interval', label: 'SetInterval Worker' },
+    { name: 'set-timeout', label: 'SetTimeout Worker' },
   ]
+
+  test('worker select should list all supported worker types', async ({ page }) => {
+    await page.goto('/')
+
+    const options = await page.locator('#new-timer-worker option').evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        value: (node as HTMLOptionElement).value,
+        label: (node.textContent || '').trim(),
+      })),
+    )
+
+    expect(options).toEqual(workerTypes.map(({ name, label }) => ({ value: name, label })))
+  })
 
   for (const workerType of workerTypes) {
     test(`${workerType.label} worker should start and stop cleanly`, async ({
