@@ -212,6 +212,8 @@ export default class Timer {
      * @returns number of ticks
      */
     convertToTicks(time: number): number;
+    getSwingDelay(period?: number): number;
+    getSwingAdjustment(intervals: number, period?: number): number;
     getExpectedElapsed(intervals: number): number;
     getCurrentPeriodInSeconds(): number;
     updateElapsedScale(timePassed: number): void;

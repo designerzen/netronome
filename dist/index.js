@@ -560,7 +560,7 @@ class Timer {
     return this.now - this.lastRecordedTime;
   }
   get swing() {
-    return this.swingOffset / this.divisions;
+    return this.swingOffset;
   }
   // Positions & booleans
   get isAtStart() {
@@ -582,7 +582,7 @@ class Timer {
     return this.beatProgress % 0.5 === 0;
   }
   get isSwungBeat() {
-    return this.divisionsElapsed % this.swingOffset === 0;
+    return this.swingOffset > 0 && this.divisionsElapsed % 2 === 1;
   }
   get isUsingExternalTrigger() {
     return __privateGet(this, _bypassed);
@@ -642,7 +642,7 @@ class Timer {
    * to determine when the "beat" should occur
    */
   set swing(value) {
-    this.swingOffset = value * this.divisions;
+    this.swingOffset = Math.min(1, Math.max(0, value));
   }
   /**
    * Set the function that gets called on every divixional tick
@@ -698,8 +698,18 @@ class Timer {
   convertToTicks(time) {
     return time * this.ticksPerSecond;
   }
+  getSwingDelay(period = this.getCurrentPeriodInSeconds()) {
+    return this.swingOffset > 0 ? period * this.swingOffset : 0;
+  }
+  getSwingAdjustment(intervals, period = this.getCurrentPeriodInSeconds()) {
+    return this.swingOffset > 0 && intervals % 2 === 1 ? this.getSwingDelay(period) : 0;
+  }
   getExpectedElapsed(intervals) {
-    return __privateGet(this, _expectedAtTempoChange) + Math.max(0, intervals - __privateGet(this, _intervalsAtTempoChange)) * this.getCurrentPeriodInSeconds();
+    const period = this.getCurrentPeriodInSeconds();
+    const relativeIntervals = Math.max(0, intervals - __privateGet(this, _intervalsAtTempoChange));
+    const anchorAdjustment = this.getSwingAdjustment(__privateGet(this, _intervalsAtTempoChange), period);
+    const intervalAdjustment = this.getSwingAdjustment(intervals, period);
+    return __privateGet(this, _expectedAtTempoChange) + relativeIntervals * period + (intervalAdjustment - anchorAdjustment);
   }
   getCurrentPeriodInSeconds() {
     return this.timeBetween * 1e-3;
@@ -745,7 +755,7 @@ class Timer {
     const timeBetweenPeriod = this.getCurrentPeriodInSeconds();
     const expected = this.getExpectedElapsed(intervals);
     const timePassed = timePased;
-    const lag = timePassed % timeBetweenPeriod;
+    const lag = this.swingOffset > 0 ? timePassed - expected : timePassed % timeBetweenPeriod;
     const drift = timePassed - this.timeElapsed;
     const level = Math.floor(timePassed / this.timeBetween);
     if (__privateGet(this, _running)) {
@@ -1157,7 +1167,6 @@ class Timer {
         this.divisionsElapsed = 0;
       }
     }
-    this.divisionsElapsed % this.swingOffset === 0;
     this.callback && this.callback({
       bar: this.currentBar,
       bars: this.totalBars,
