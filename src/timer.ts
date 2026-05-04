@@ -10,21 +10,20 @@ import {
 
 import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
-import type { WorkerWrapper } from './vite-env'
+import type { WorkerWrapper } from './timer-interfaces'
 
 import Epoch from './epoch'
 import { TimerOptions, DEFAULT_TIMER_OPTIONS } from './timer-options'
 
 import { AudioContextWorkerWrapper, RollingTimeWorkerWrapper, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper } from './timer-worker-types'
-import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, TIMER_TYPES, isValidTimerType, type TimerType } from './timer-types'
+import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, TIMER_TYPES, isValidTimerType, isWorkletTimerType, type TimerType } from './timer-types'
 
 import type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces'
-
+export type { ITimerControl, TimingHandler, TimerCallbackEvent }
 
 export const MAX_BARS_ALLOWED = 32
 
 // Re-export interfaces for external use
-export type { ITimerControl, TimingHandler, TimerCallbackEvent }
 
 
 /**
@@ -49,6 +48,7 @@ export const resolveTimerType = (timerType: TimerType | string): WorkerWrapper |
         case TIMER_TYPE_SET_TIMEOUT:
             return SetTimeoutWorkerWrapper
         case TIMER_TYPE_AUDIO_WORKLET:
+        case TIMER_TYPE_ELASTIC_AUDIO_WORKLET:
             // Audio worklet is handled specially, return null here
             return null
         default:
@@ -64,16 +64,18 @@ export const resolveTimerType = (timerType: TimerType | string): WorkerWrapper |
  */
 export const isFileWorklet = (file: string | TimerType): boolean => {
 
+    const normalized = typeof file === 'string' ? file.toLowerCase() : file
+
     if (typeof file === "function") {
         return false
     }
-    if (typeof file === 'string' && file === TIMER_TYPE_AUDIO_WORKLET) {
+    if (typeof normalized === 'string' && normalized === TIMER_TYPE_AUDIO_WORKLET) {
         return true
     }
-    if (typeof file === 'string' && file.indexOf("orklet") > -1) {
+    if (typeof normalized === 'string' && normalized.indexOf("orklet") > -1) {
         return true
     }
-    if (typeof file === 'string' && file.indexOf("data:text/javascript;base64,") > -1) {
+    if (typeof normalized === 'string' && normalized.indexOf("data:text/javascript;base64,") > -1) {
         return true
     }
     return false
@@ -84,6 +86,12 @@ export default class Timer {
 
     startTime: number = -1
     period: number = 100
+    #expectedAtTempoChange: number = 0
+    #intervalsAtTempoChange: number = 0
+    #lastTickIntervals: number = 0
+    #transportAnchorExpected: number = 0
+    #transportAnchorClockTime: number = -1
+    #clockTimeToElapsedScale: number = 0
 
     // for time formatting...
     currentBar: number = 0
@@ -130,6 +138,7 @@ export default class Timer {
     get isRunning():boolean{
         return this.#running
     }
+
     get running(): boolean {
         return this.#running
     }
@@ -145,7 +154,7 @@ export default class Timer {
     get isBypassed():boolean {
         return this.#bypassed
     }
-    
+
     /**
      * 
      */
@@ -159,6 +168,13 @@ export default class Timer {
      */
     get now(): number {
         return this.getNow()
+    }
+
+    /** 
+     * Time conversion factor
+     */
+    get clockUnitsToSecondsScale(): number {
+        return 0.001
     }
 
     /**
@@ -310,7 +326,7 @@ export default class Timer {
         return this.divisionsElapsed === 0
     }
     get isAtStartOfBar(): boolean {
-        return this.barProgress === 0
+        return this.divisionsElapsed === 0
     }
     get isStartBar(): boolean {
         return this.currentBar === 0
@@ -350,6 +366,11 @@ export default class Timer {
         this.bars = value < 1 ? 1 : value > MAX_BARS_ALLOWED ? MAX_BARS_ALLOWED : value
     }
 
+    setBars(value: number): number {
+        this.totalBars = value
+        return this.bars
+    }
+
     /**
      * Set the current timing using a BPM where 
      * one beat in milliseconds =  60,000 / BPM
@@ -371,6 +392,10 @@ export default class Timer {
      * @param time Amount of millieconds between ticks
      */
     set timeBetween(time: number) {
+
+        if (this.#running) {
+            this.captureTempoChangeAnchor()
+        }
 
         const interval = time / this.divisions
         // we want 16 notes
@@ -428,8 +453,9 @@ export default class Timer {
 
         // 
         const typeStr = typeof options.type === 'string' ? options.type : ''
+        const useWorklet = isWorklet || isWorkletTimerType(typeStr) || isFileWorklet(typeStr)
 
-        if (isWorklet) {
+        if (useWorklet) {
             this.loaded = this.setTimingWorklet(
                 typeStr,
                 options.processor || '',
@@ -505,13 +531,69 @@ export default class Timer {
      * @returns number of ticks
      */
     convertToTicks(time: number): number {
-        return time / this.ticksPerSecond
+        return time * this.ticksPerSecond
+    }
+
+    getExpectedElapsed(intervals: number): number {
+        return this.#expectedAtTempoChange + Math.max(0, intervals - this.#intervalsAtTempoChange) * this.getCurrentPeriodInSeconds()
+    }
+
+    getCurrentPeriodInSeconds(): number {
+        return this.timeBetween * 0.001
+    }
+
+    updateElapsedScale(timePassed: number): void {
+        const localElapsed = this.now - this.startTime
+        if (localElapsed > 0 && timePassed > 0) {
+            this.#clockTimeToElapsedScale = timePassed / localElapsed
+        }
+    }
+
+    getTransportElapsedNow(): number {
+        if (this.#transportAnchorClockTime < 0) {
+            return this.#transportAnchorExpected
+        }
+
+        const elapsedSinceAnchor = this.now - this.#transportAnchorClockTime
+        if (elapsedSinceAnchor <= 0) {
+            return this.#transportAnchorExpected
+        }
+
+        const scale = this.#clockTimeToElapsedScale || this.clockUnitsToSecondsScale
+
+        return this.#transportAnchorExpected + Math.max(0, elapsedSinceAnchor * scale)
+    }
+
+    resetTransportTiming(anchorClockTime: number = this.now): void {
+        this.#expectedAtTempoChange = 0
+        this.#intervalsAtTempoChange = this.#running ? this.#lastTickIntervals : 0
+        this.#transportAnchorExpected = 0
+        this.#transportAnchorClockTime = anchorClockTime
+
+        if (!this.#running) {
+            this.#lastTickIntervals = 0
+            this.#clockTimeToElapsedScale = 0
+        }
+    }
+
+    captureTempoChangeAnchor(anchorClockTime: number = this.now): void {
+        if (!this.#running) {
+            return
+        }
+
+        // Keep transport time continuous at the moment of change; only future intervals
+        // should use the new period reported by the worker/worklet.
+        const transportElapsed = this.getTransportElapsedNow()
+        this.#expectedAtTempoChange = transportElapsed
+        this.#intervalsAtTempoChange = this.#lastTickIntervals
+        this.#transportAnchorExpected = transportElapsed
+        this.#transportAnchorClockTime = anchorClockTime
     }
 
     createTick(intervals: number, timePased: number): void {
-        const timeBetweenPeriod = this.timeBetween * 0.001
+        const timeBetweenPeriod = this.getCurrentPeriodInSeconds()
         // Expected time stamp
-        const expected = intervals * timeBetweenPeriod
+        const expected = this.getExpectedElapsed(intervals)
         // How long has elapsed according to our worker
         const timePassed = timePased
         // how much spill over the expected timestamp is there
@@ -522,6 +604,10 @@ export default class Timer {
         const level = Math.floor(timePassed / this.timeBetween)
         // elapsed should === time
         if (this.#running) {
+            this.#lastTickIntervals = intervals
+            this.#transportAnchorExpected = expected
+            this.#transportAnchorClockTime = this.now
+            this.updateElapsedScale(timePassed)
             this.onTick(timePassed, expected, drift, level, intervals, lag)
         }
     }
@@ -555,15 +641,16 @@ export default class Timer {
             }
 
             // Dynamically import the worklet based on type parameter
-            const imports = await import('./worklets/timing.audioworklet.js')
-            const { createTimingWorklet } = imports
+            const createWorklet = type === TIMER_TYPE_ELASTIC_AUDIO_WORKLET
+                ? (await import('./worklets/elastic-timing.audioworklet.js')).createElasticTimingWorklet
+                : (await import('./worklets/timing.audioworklet.js')).createTimingWorklet
 
             // Ensure we have an AudioContext
             if (!audioContext) {
                 throw new Error('AudioContext is required for AudioWorklet')
             }
 
-            this.timingWorkHandler = await createTimingWorklet(audioContext)
+            this.timingWorkHandler = await createWorklet(audioContext)
             this.isCompatible = true
 
             // console.error(type, "timer.audioworklet", {module, audioContext}, this.timingWorker ) 
@@ -600,7 +687,7 @@ export default class Timer {
                 // Ensure absolute URLs for GitHub Pages compatibility
                 let workerUrl = type
                 if (!workerUrl.startsWith('http') && !workerUrl.startsWith('blob:')) {
-                    const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`
+                    const baseUrl = `${window.location.origin}/`
                     workerUrl = new URL(type, baseUrl).href
                 }
                 return new Worker(workerUrl, { type: 'module' })
@@ -704,7 +791,7 @@ export default class Timer {
             }
 
             // Switch to the new timer type
-            if (timerType === TIMER_TYPE_AUDIO_WORKLET) {
+            if (isWorkletTimerType(timerType)) {
                 // Audio worklet requires special handling
                 if (!audioContext) {
                     throw new Error('AudioContext is required when switching to audio-worklet timer type')
@@ -821,6 +908,7 @@ export default class Timer {
                     // destroy contexts and unsubscribe from events
                     if (setStopped) {
                         this.#running = false
+                        this.resetTransportTiming(this.now)
                     }
                     break
             }
@@ -841,6 +929,7 @@ export default class Timer {
         this.currentBar = 0
         this.totalBarsElapsed = 0
         this.divisionsElapsed = 0
+        this.resetTransportTiming()
     }
 
     async start(callback?: (event: TimerCallbackEvent) => void): Promise<{ time: number; interval: number; worker: TimingHandler }> {
@@ -877,6 +966,7 @@ export default class Timer {
         if (!this.#running) {
             // FIXME: Alter this behaviour for rolling count
             this.totalBarsElapsed = 0
+            this.resetTransportTiming(currentTime)
         }
 
         if (callback) {
@@ -892,6 +982,7 @@ export default class Timer {
         // we try and determine the tempo ourselves
         if (this.#bypassed) {
             this.#running = true
+            this.resetTransportTiming(currentTime)
             return {
                 time: currentTime,
                 interval: -1,
@@ -1018,29 +1109,30 @@ export default class Timer {
     externalTrigger(advance: boolean = true): void {
         // How long has elapsed according to our clock
         const timestamp = this.now
+        const previousRecordedExternalTime = this.lastRecordedExternalTime
         this.lastRecordedExternalTime = timestamp
 
         // work out the BPOM from the clock...
         // const BPM = convertPeriodToBPM( period * 24 )
 
         // const period = tapTempo(true, 10000, 3)
-        const elapsedSinceLastClock = timestamp - this.lastRecordedExternalTime
+        const elapsedSinceLastClock = previousRecordedExternalTime > 0
+            ? (timestamp - previousRecordedExternalTime) * this.clockUnitsToSecondsScale
+            : this.getCurrentPeriodInSeconds()
+        const elapsedTimestamp = timestamp * this.clockUnitsToSecondsScale
         // Expected time stamp
         const expected = this.divisionsElapsed * elapsedSinceLastClock
         // how much spill over the expected timestamp is there
-        const lag = timestamp % elapsedSinceLastClock
+        const lag = elapsedSinceLastClock > 0 ? elapsedTimestamp % elapsedSinceLastClock : 0
         // should be 0 if the timer is working...
-        const drift = timestamp - expected
+        const drift = elapsedTimestamp - expected
         // deterministic intervals not neccessary
-        const level = Math.floor(timestamp / elapsedSinceLastClock)
+        const level = elapsedSinceLastClock > 0 ? Math.floor(elapsedTimestamp / elapsedSinceLastClock) : 0
 
         // console.log("MIDI CLOCK", BPM, period, elapsedSinceLastClock, timestamp )
 
         if (this.#running && this.#bypassed) {
-            this.onTick(elapsedSinceLastClock, expected, drift, level, this.divisionsElapsed, lag)
-        }
-        if (advance) {
-            this.divisionsElapsed++
+            this.onTick(elapsedSinceLastClock, expected, drift, level, this.divisionsElapsed, lag, advance)
         }
     }
 
@@ -1085,16 +1177,19 @@ export default class Timer {
         drift: number = 0,
         level: number = 0,
         intervals: number = 0,
-        lag: number = 0
+        lag: number = 0,
+        advanceDivisions: boolean = true
     ): void {
 
         this.lastRecordedTime = timePassed;
 
         // check if bar has completed
-        if (++this.divisionsElapsed >= this.divisions) {
-            ++this.totalBarsElapsed
-            this.currentBar = (this.currentBar + 1) % this.bars
-            this.divisionsElapsed = 0
+        if (advanceDivisions) {
+            if (++this.divisionsElapsed >= this.divisions) {
+                ++this.totalBarsElapsed
+                this.currentBar = (this.currentBar + 1) % this.bars
+                this.divisionsElapsed = 0
+            }
         }
 
         // let us determine if we are on a swung beat
@@ -1130,3 +1225,14 @@ export {
     getTimerTypeDescription,
     type TimerType,
 } from './timer-types'
+
+export {
+    Ticks,
+    MICROSECONDS_PER_MINUTE,
+    SECONDS_PER_MINUTE,
+    convertBPMToPeriod,
+    convertPeriodToBPM,
+    convertMIDIClockIntervalToBPM,
+    secondsToTicks,
+    formatTimeStampFromSeconds,
+} from './time-utils'

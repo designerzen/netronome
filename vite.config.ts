@@ -1,8 +1,10 @@
 import { defineConfig } from 'vite'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 
-const certDir = path.resolve(__dirname, './certs')
+const configDir = path.dirname(fileURLToPath(import.meta.url))
+const certDir = path.resolve(configDir, './certs')
 const keyFile = path.join(certDir, 'localhost-key.pem')
 const certFile = path.join(certDir, 'localhost.pem')
 
@@ -31,7 +33,7 @@ export default defineConfig({
     target: 'es2020',
     minify: 'terser',
     sourcemap: true,
-    outDir: 'dist'
+    outDir: 'dist-demo'
   },
   server: {
     port: 3030,

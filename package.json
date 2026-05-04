@@ -17,19 +17,27 @@
     "url": "https://github.com/designerzen/netronome/issues"
   },
   "main": "./dist/index.js",
-  "module": "./dist/index.es.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.es.js",
-      "require": "./dist/index.js",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
   "files": [
-    "dist",
+    "dist/index.js",
+    "dist/index.js.map",
+    "dist/index.d.ts",
+    "dist/index.d.ts.map",
+    "dist/timing.audioworklet.js",
+    "dist/timing.audioworklet.js.map",
+    "dist/src/",
+    "dist/workers/timing.*.js",
+    "dist/workers/timing.*.js.map",
+    "dist/workers/timer-event-types.js",
+    "dist/workers/timer-event-types.js.map",
     "README.md",
     "LICENSE"
   ],
@@ -54,7 +62,8 @@
   },
   "scripts": {
     "cert": "mkcert -install && mkcert -cert-file ./certs/localhost.pem -key-file ./certs/localhost-key.pem localhost 127.0.0.1 ::1",
-    "build": "vite build && tsc --emitDeclarationOnly --outDir dist && vite build -c vite.lib.config.ts --mode lib",
+    "build": "vite build && pnpm build:lib",
+    "build:lib": "vite build -c vite.lib.config.ts && vite build -c vite.workers.config.ts && tsc -p tsconfig.build.json",
     "start": "vite",
     "dev": "vite",
     "preview": "vite preview",

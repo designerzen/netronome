@@ -16,7 +16,7 @@
     "resolveJsonModule": true,
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "allowImportingTsExtensions": true,
+    "allowImportingTsExtensions": false,
     "isolatedModules": true,
     "types": ["node"],
     "typeRoots": ["./node_modules/@types"],

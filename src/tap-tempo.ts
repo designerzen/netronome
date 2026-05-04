@@ -16,6 +16,12 @@ const MINIMUM_TEMPOS = 2
 export const tapTempoQuick = (autoReset: boolean = true, timeOut: number = TAP_TIMEOUT, minimumTaps: number = MINIMUM_TEMPOS): number => {
     
     const currentTime = performance ? performance.now() : Date.now()
+    const previousTime = beatTimes[beatTimes.length - 1]
+
+    if (beatTimes.length > 0 && previousTime !== undefined && currentTime <= previousTime)
+    {
+        beatTimes = []
+    }
 
     if ( autoReset && beatTimes.length > 0 && currentTime - beatTimes[beatTimes.length-1] > timeOut )
     {

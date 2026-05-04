@@ -248,13 +248,15 @@ Each tick fires a callback with:
   barsElapsed: number      // Total bars completed
   elapsed: number          // Milliseconds since start
   timePassed: number       // Time since last tick
-  expected: number         // Expected time since start
+  expected: number         // Ideal transport elapsed since start; live tempo changes stay continuous and only affect future spacing
   drift: number            // Difference between actual and expected
   level: number            // Timing level/layer
   intervals: number        // Interval count
   lag: number              // Timing lag
 }
 ```
+
+`expected` is transport-continuous across live `BPM` or `timeBetween` changes. Tempo updates affect only future tick spacing; elapsed transport time that has already passed is not retroactively stretched or compressed.
 
 ## Timing Backends
 

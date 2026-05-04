@@ -1,6 +1,6 @@
 import Timer from "./timer"
 
-import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET } from './timer-types'
+import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, isWorkletTimerType, type TimerType } from './timer-types'
 import type { AudioTimerOptions } from './timer-interfaces'
 
 const DEFAULT_AUDIO_TIMER_OPTIONS: AudioTimerOptions = {
@@ -24,22 +24,29 @@ export default class AudioTimer extends Timer {
 	get now(): number { 
 		return this.audioContext ? this.audioContext.currentTime : performance.now() 
 	}
+
+	get clockUnitsToSecondsScale(): number {
+		return 1
+	}
 	
 	/**
 	 * Create an AudioTimer with an AudioContext
 	 * Uses AudioWorklet timing if available, falls back to AudioContext worker
 	 * @param audioContext The AudioContext to use for accurate timing
-	 * @param useAudioWorklet If true, attempts to use AudioWorklet (recommended). If false, uses AudioContext worker.
+	 * @param timerType If true, attempts to use AudioWorklet (recommended). If false, uses AudioContext worker.
 	 */
-	constructor(audioContext: AudioContext, useAudioWorklet: boolean = true){
+	constructor(audioContext: AudioContext, timerType: TimerType | boolean = true){
+		const resolvedTimerType = typeof timerType === 'boolean'
+			? (timerType ? TIMER_TYPE_AUDIO_WORKLET : TIMER_TYPE_AUDIO_CONTEXT)
+			: timerType
 		const timerOptions: AudioTimerOptions = {
 			audioContext,
 			...DEFAULT_AUDIO_TIMER_OPTIONS,
 			// Use the string type constant - Timer base class handles async initialization
-			type: useAudioWorklet ? TIMER_TYPE_AUDIO_WORKLET : TIMER_TYPE_AUDIO_CONTEXT
+			type: resolvedTimerType
 		}
 
-		super( timerOptions, useAudioWorklet )
+		super( timerOptions, isWorkletTimerType(resolvedTimerType) || resolvedTimerType === TIMER_TYPE_ELASTIC_AUDIO_WORKLET )
 		if (!this.audioContext)
 		{
 			throw Error('No AudioContext specified')

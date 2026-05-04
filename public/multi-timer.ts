@@ -3,18 +3,20 @@
  * Manages multiple timers running simultaneously with individual configurations
  */
 
-interface MultiTimerConfig {
+import { TIMER_TYPE_AUDIO_CONTEXT, type TimerType } from '../src/timer-types'
+
+export interface MultiTimerConfig {
     id: string
     bpm: number
     name: string
-    workerType: string
+    workerType: TimerType
     color: string
     startTime?: number
     epoch?: string
     metronomeEnabled?: boolean
 }
 
-interface MultiTimerData {
+export interface MultiTimerData {
     id: string
     lag: number
     timePassed: number
@@ -50,7 +52,7 @@ export class MultiTimerManager {
             id,
             bpm: config.bpm || 120,
             name: config.name || `Timer ${this.timers.size + 1}`,
-            workerType: config.workerType || 'audiocontext',
+            workerType: config.workerType || TIMER_TYPE_AUDIO_CONTEXT,
             color,
             metronomeEnabled: config.metronomeEnabled || false
         }
