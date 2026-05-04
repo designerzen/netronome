@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { TIMER_TYPE_AUDIO_CONTEXT, type TimerType } from '../src/timer-types'
 
 describe('Metronome Sound Feature', () => {
   let mockOscillator: any
@@ -173,7 +174,7 @@ describe('Metronome Configuration in Timer', () => {
       id: string
       bpm: number
       name: string
-      workerType: string
+      workerType: TimerType
       color: string
       startTime?: number
       epoch?: string
@@ -184,7 +185,7 @@ describe('Metronome Configuration in Timer', () => {
       id: 'timer-1',
       bpm: 120,
       name: 'Test Timer',
-      workerType: 'audiocontext',
+      workerType: TIMER_TYPE_AUDIO_CONTEXT,
       color: '#FF0000',
       metronomeEnabled: true,
     }
@@ -197,7 +198,7 @@ describe('Metronome Configuration in Timer', () => {
       id: string
       bpm: number
       name: string
-      workerType: string
+      workerType: TimerType
       color: string
       metronomeEnabled?: boolean
     }
@@ -212,7 +213,7 @@ describe('Metronome Configuration in Timer', () => {
       id: 'timer-1',
       bpm: config.bpm || 120,
       name: config.name || 'Timer',
-      workerType: 'audiocontext',
+      workerType: TIMER_TYPE_AUDIO_CONTEXT,
       color: '#FF0000',
       metronomeEnabled: config.metronomeEnabled || false,
     }

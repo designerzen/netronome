@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { TIMER_TYPE_AUDIO_CONTEXT } from '../src/timer-types'
 
 // These tests assume the DOM is available
 describe('Multi-Timer UI Integration', () => {
@@ -263,13 +264,13 @@ describe('Multi-Timer Data Flow', () => {
             id: 'timer-1',
             bpm: 120,
             name: 'Test Timer',
-            workerType: 'audiocontext',
+            workerType: TIMER_TYPE_AUDIO_CONTEXT,
             color: '#FF6B6B'
         }
 
         expect(timerConfig.bpm).toBe(120)
         expect(timerConfig.name).toBe('Test Timer')
-        expect(timerConfig.workerType).toBe('audiocontext')
+        expect(timerConfig.workerType).toBe(TIMER_TYPE_AUDIO_CONTEXT)
     })
 
     it('should handle timer state transitions', () => {

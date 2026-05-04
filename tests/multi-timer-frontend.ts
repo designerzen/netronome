@@ -3,24 +3,18 @@
  * Manages UI and orchestrates multiple timers with shared chart
  */
 
-import { createTimer } from '../src/timer-global.ts'
-import {
-    AudioContextWorkerWrapper,
-    RollingTimeWorkerWrapper,
-    SetIntervalWorkerWrapper,
-    SetTimeoutWorkerWrapper
-} from '../src/timer-worker-types.js'
-import { default as TimingWorkletNode, createTimingWorklet } from '../src/worklets/timing.audioworklet.ts'
+import Timer from '../src/timer.ts'
+import AudioTimer from '../src/timer-audio.ts'
 import { MultiTimerManager } from '../public/multi-timer.ts'
 import { MultiTimerChart } from '../public/multi-timer-chart.ts'
-
-const WORKER_TYPES: Record<string, string> = {
-    audiocontext: AudioContextWorkerWrapper,
-    audioworklet: TimingWorkletNode,
-    rolling: RollingTimeWorkerWrapper,
-    setinterval: SetIntervalWorkerWrapper,
-    settimeout: SetTimeoutWorkerWrapper
-}
+import {
+    TIMER_TYPE_AUDIO_CONTEXT,
+    TIMER_TYPE_AUDIO_WORKLET,
+    TIMER_TYPE_ELASTIC_AUDIO_WORKLET,
+    TIMER_TYPE_OPTIONS,
+    getTimerTypeDescription,
+    type TimerType,
+} from '../src/timer-types'
 
 interface RunningTimer {
     id: string
@@ -49,6 +43,34 @@ const chart = new MultiTimerChart('multi-timer-chart')
 let isAnyRunning = false
 let tickAudioEnabled = false
 let audioContext: AudioContext | null = null
+const audioTimerTypes = new Set<TimerType>([
+    TIMER_TYPE_AUDIO_CONTEXT,
+    TIMER_TYPE_AUDIO_WORKLET,
+    TIMER_TYPE_ELASTIC_AUDIO_WORKLET,
+])
+
+const renderTimerTypeOptions = (selectedType: TimerType) => {
+    return TIMER_TYPE_OPTIONS.map((timerType) => {
+        const selected = timerType === selectedType ? 'selected' : ''
+        return `<option value="${timerType}" ${selected}>${getTimerTypeDescription(timerType)}</option>`
+    }).join('')
+}
+
+const ensureAudioContext = async () => {
+    if (!audioContext) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+        if (!AudioContextClass) {
+            throw new Error('Web Audio API not supported in this browser')
+        }
+        audioContext = new AudioContextClass()
+    }
+
+    if (audioContext.state === 'suspended') {
+        await audioContext.resume()
+    }
+
+    return audioContext
+}
 
 // Initialize theme
 const initTheme = () => {
@@ -138,7 +160,7 @@ const renderTimerCard = (timerId: string) => {
     cardTitle.textContent = timerConfig.name
 
     const typeBadge = fragment.querySelector('.timer-type-badge') as HTMLElement
-    typeBadge.textContent = timerConfig.workerType || 'Unknown'
+    typeBadge.textContent = getTimerTypeDescription(timerConfig.workerType)
 
     // Update controls
     const bpmInput = fragment.querySelector('.timer-bpm') as HTMLInputElement
@@ -146,7 +168,8 @@ const renderTimerCard = (timerId: string) => {
     bpmInput.disabled = running
 
     const workerTypeSelect = fragment.querySelector('.timer-worker-type') as HTMLSelectElement
-    workerTypeSelect.value = timerConfig.workerType || 'audiocontext'
+    workerTypeSelect.innerHTML = renderTimerTypeOptions(timerConfig.workerType)
+    workerTypeSelect.value = timerConfig.workerType
     workerTypeSelect.disabled = running
 
     // Update stats
@@ -179,13 +202,14 @@ const renderTimerCard = (timerId: string) => {
         const running = runningTimers.get(timerId)
         if (running) {
             const interval = 60000 / bpm
-            running.timer.setTimeBetween?.(interval)
+            running.timer.timeBetween = interval
         }
     })
 
     workerTypeSelect.addEventListener('change', (e) => {
-        const workerType = (e.target as HTMLSelectElement).value
+        const workerType = (e.target as HTMLSelectElement).value as TimerType
         multiTimerManager.updateTimerConfig(timerId, { workerType })
+        updateUI()
     })
 
     startBtn.addEventListener('click', () => startTimer(timerId))
@@ -208,12 +232,11 @@ const startTimer = async (timerId: string) => {
 
     try {
         const interval = 60000 / config.bpm
-        const workerUri = WORKER_TYPES[config.workerType]
+        const timer = audioTimerTypes.has(config.workerType)
+            ? new AudioTimer(await ensureAudioContext(), config.workerType)
+            : new Timer({ bpm: config.bpm, type: config.workerType })
 
-        const timer = createTimer({
-            interval,
-            type: workerUri
-        })
+        timer.BPM = config.bpm
 
         const stats = {
             ticks: 0,
@@ -262,9 +285,7 @@ const startTimer = async (timerId: string) => {
         }
 
         // Start the timer
-        await timer.startTimer(callback, {
-            type: workerUri
-        })
+        await timer.startTimer(callback)
 
         runningTimers.set(timerId, {
             id: timerId,

@@ -91,12 +91,9 @@ describe('Timer Timing Stability', () => {
         intervals.push(beatTimes[i] - beatTimes[i - 1])
       }
       
-      // Standard deviation should be near zero
-      const mean = intervals.reduce((a, b) => a + b) / intervals.length
-      const variance = intervals.reduce((sum, val) => sum + Math.pow(val - mean, 2)) / intervals.length
-      const stdDev = Math.sqrt(variance)
-      
-      expect(stdDev).toBeLessThan(0.0001) // Very tight consistency
+      intervals.forEach(interval => {
+        expect(interval).toBeCloseTo(quarterNoteSeconds, 10)
+      })
     })
 
     it('should maintain groove over extended period', () => {
@@ -333,7 +330,7 @@ describe('Timer Timing Stability', () => {
       
       // First and last tick should maintain expected spacing
       expect(timings[0]).toBeCloseTo(0, 5)
-      expect(timings[expectedTicks - 1]).toBeCloseTo(duration, 1)
+      expect(timings[expectedTicks - 1]).toBeCloseTo(duration - quarterNoteSeconds, 5)
     })
 
     it('should maintain timing accuracy over 10 minutes', () => {
@@ -345,7 +342,7 @@ describe('Timer Timing Stability', () => {
       // Should be able to calculate end point accurately
       const endTime = (expectedTicks - 1) * quarterNoteSeconds
       
-      expect(endTime).toBeCloseTo(duration, 1)
+      expect(endTime).toBeCloseTo(duration - quarterNoteSeconds, 5)
     })
 
     it('should not accumulate significant error over extended period', () => {
@@ -433,30 +430,25 @@ describe('Timer Timing Stability', () => {
         intervals.push(quarterNoteSeconds)
       }
       
-      // Calculate standard deviation
-      const mean = intervals.reduce((a, b) => a + b) / intervals.length
-      const variance = intervals.reduce((sum, val) => sum + Math.pow(val - mean, 2)) / intervals.length
-      const stdDev = Math.sqrt(variance)
-      
+      const spread = Math.max(...intervals) - Math.min(...intervals)
+
       // Should be essentially zero for perfect timing
-      expect(stdDev).toBeLessThan(0.00001)
+      expect(spread).toBe(0)
     })
 
     it('should identify timing degradation', () => {
-      // Perfect timing
       const perfectIntervals = new Array(50).fill(0.5)
-      
-      // Degraded timing (with jitter)
-      const jitterIntervals = perfectIntervals.map(val => val + (Math.random() * 0.01 - 0.005))
-      
-      // Calculate standard deviations
-      const perfectStdDev = Math.sqrt(
-        perfectIntervals.reduce((sum, val) => sum + Math.pow(val - 0.5, 2)) / perfectIntervals.length
-      )
-      
-      const jitterStdDev = Math.sqrt(
-        jitterIntervals.reduce((sum, val) => sum + Math.pow(val - 0.5, 2)) / jitterIntervals.length
-      )
+      const jitterPattern = [0.005, -0.005, 0.004, -0.004, 0.003, -0.003]
+      const jitterIntervals = perfectIntervals.map((value, index) => value + jitterPattern[index % jitterPattern.length])
+
+      const getStandardDeviation = (values: number[]) => {
+        const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+        const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length
+        return Math.sqrt(variance)
+      }
+
+      const perfectStdDev = getStandardDeviation(perfectIntervals)
+      const jitterStdDev = getStandardDeviation(jitterIntervals)
       
       // Jittered timing should have higher standard deviation
       expect(jitterStdDev).toBeGreaterThan(perfectStdDev)

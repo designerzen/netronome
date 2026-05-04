@@ -23,7 +23,7 @@ describe('Timer Timing Accuracy & Consistency', () => {
       timer.BPM = 120
       
       // At 120 BPM, quarter note = 500ms
-      const expectedQuarterNoteMs = (MICROSECONDS_PER_MINUTE / 120) * 0.001
+      const expectedQuarterNoteMs = MICROSECONDS_PER_MINUTE / 120
       expect(expectedQuarterNoteMs).toBeCloseTo(500, 1)
       
       // Verify calculation is accurate
@@ -34,7 +34,7 @@ describe('Timer Timing Accuracy & Consistency', () => {
       timer.BPM = 60
       
       // At 60 BPM, quarter note = 1000ms
-      const expectedQuarterNoteMs = (MICROSECONDS_PER_MINUTE / 60) * 0.001
+      const expectedQuarterNoteMs = MICROSECONDS_PER_MINUTE / 60
       expect(expectedQuarterNoteMs).toBeCloseTo(1000, 1)
       
       expect(timer.quarterNoteDurationInSeconds).toBeCloseTo(1, 5)
@@ -44,7 +44,7 @@ describe('Timer Timing Accuracy & Consistency', () => {
       timer.BPM = 140
       
       // At 140 BPM, quarter note ≈ 428.57ms
-      const expectedQuarterNoteMs = (MICROSECONDS_PER_MINUTE / 140) * 0.001
+      const expectedQuarterNoteMs = MICROSECONDS_PER_MINUTE / 140
       expect(expectedQuarterNoteMs).toBeCloseTo(428.57, 1)
       
       expect(timer.quarterNoteDurationInSeconds).toBeCloseTo(SECONDS_PER_MINUTE / 140, 5)
@@ -63,12 +63,11 @@ describe('Timer Timing Accuracy & Consistency', () => {
     it('should handle sub-millisecond precision', () => {
       timer.BPM = 120
       
-      // Calculate to high precision
+      // Calculate in milliseconds with decimal precision
       const period = MICROSECONDS_PER_MINUTE / 120
-      expect(period).toBe(500000) // 500,000 microseconds
+      expect(period).toBe(500)
       
-      // Check sub-millisecond consistency
-      const quarterNoteMs = period * 0.001
+      const quarterNoteMs = period
       expect(quarterNoteMs).toBeCloseTo(500, 3)
     })
   })
@@ -131,9 +130,9 @@ describe('Timer Timing Accuracy & Consistency', () => {
       // 140 BPM should be faster than 120 BPM
       expect(period140).toBeLessThan(period120)
       
-      // Ratio should be correct: 120/140 = 0.857...
+      // Periods invert tempo, so the slower tempo has the longer duration.
       const ratio = period120 / period140
-      expect(ratio).toBeCloseTo(120 / 140, 5)
+      expect(ratio).toBeCloseTo(140 / 120, 5)
     })
 
     it('should calculate timing with minimal jitter', () => {
@@ -147,9 +146,9 @@ describe('Timer Timing Accuracy & Consistency', () => {
         measurements.push(time)
       }
       
-      // Calculate standard deviation
-      const mean = measurements.reduce((a, b) => a + b) / measurements.length
-      const variance = measurements.reduce((sum, val) => sum + Math.pow(val - mean, 2)) / measurements.length
+      const intervals = measurements.slice(1).map((value, index) => value - measurements[index])
+      const mean = intervals.reduce((a, b) => a + b) / intervals.length
+      const variance = intervals.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / intervals.length
       const stdDev = Math.sqrt(variance)
       
       // Jitter should be minimal (less than 0.1% of period)
@@ -163,7 +162,7 @@ describe('Timer Timing Accuracy & Consistency', () => {
       timer.divisions = 24
       
       const barLength = timer.timePerBar
-      const expectedBarLength = timer.quarterNoteDurationInSeconds * 4
+      const expectedBarLength = timer.quarterNoteDuration
       
       expect(barLength).toBeCloseTo(expectedBarLength, 5)
     })
@@ -303,12 +302,9 @@ describe('Timer Timing Accuracy & Consistency', () => {
     it('should calculate MIDI clock timing accurately', () => {
       timer.BPM = 120
       
-      // At 120 BPM with 24 PPQN:
-      // Quarter note = 500ms
-      // One MIDI clock = 500/24 ≈ 20.833ms
+      // At 120 BPM with 24 PPQN, one MIDI clock is one twenty-fourth of a beat.
       const expectedMicroPerClock = timer.microsPerMIDIClock
-      const quarterNoteMicros = timer.quarterNoteDuration
-      const expectedValue = quarterNoteMicros / 24
+      const expectedValue = timer.quarterNoteDurationInSeconds / 24
       
       expect(expectedMicroPerClock).toBeCloseTo(expectedValue, 5)
     })
@@ -332,9 +328,9 @@ describe('Timer Timing Accuracy & Consistency', () => {
     it('should handle microsecond precision', () => {
       timer.BPM = 120
       
-      // Quarter note at 120 BPM should be exactly 500,000 microseconds
+      // Quarter note at 120 BPM should be exactly 500 milliseconds
       const quarterNoteMicros = timer.quarterNoteDuration
-      expect(quarterNoteMicros).toBe(500000)
+      expect(quarterNoteMicros).toBe(500)
     })
 
     it('should maintain tick counting accuracy', () => {

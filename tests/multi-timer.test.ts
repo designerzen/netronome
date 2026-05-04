@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { MultiTimerManager } from '../public/multi-timer.ts'
 import { MultiTimerChart } from '../public/multi-timer-chart.ts'
+import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_ROLLING } from '../src/timer-types'
 
 // Skip chart tests if running in Node environment (without DOM)
 const skipChartTests = typeof document === 'undefined'
@@ -37,19 +38,19 @@ describe('MultiTimerManager', () => {
             const timerId = manager.addTimer({
                 bpm: 140,
                 name: 'Custom Timer',
-                workerType: 'rolling'
+                workerType: TIMER_TYPE_ROLLING
             })
             const timer = manager.getTimer(timerId)
             expect(timer?.bpm).toBe(140)
             expect(timer?.name).toBe('Custom Timer')
-            expect(timer?.workerType).toBe('rolling')
+            expect(timer?.workerType).toBe(TIMER_TYPE_ROLLING)
         })
 
         it('should use default values when not provided', () => {
             const timerId = manager.addTimer({})
             const timer = manager.getTimer(timerId)
             expect(timer?.bpm).toBe(120)
-            expect(timer?.workerType).toBe('audiocontext')
+            expect(timer?.workerType).toBe(TIMER_TYPE_AUDIO_CONTEXT)
             expect(timer?.name).toMatch(/^Timer \d+$/)
         })
     })

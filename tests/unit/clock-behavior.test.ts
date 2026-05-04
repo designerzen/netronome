@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { TIMER_TYPE_AUDIO_CONTEXT } from '../../src/timer-types'
 
 /**
  * Clock-Behavior Tests
@@ -12,7 +13,7 @@ describe('Timer Clock Behavior', () => {
       const config = {
         bpm: 120,
         name: 'Test Timer',
-        workerType: 'audiocontext' as const,
+        workerType: TIMER_TYPE_AUDIO_CONTEXT,
       }
 
       expect(config.bpm).toBe(120)

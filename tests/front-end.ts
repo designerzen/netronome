@@ -1,7 +1,16 @@
 // Netronome - Unified Timer Management
+import Timer from '../src/timer.ts'
 import AudioTimer from '../src/timer-audio.ts'
 import { MultiTimerManager } from '../public/multi-timer.ts'
 import { MultiTimerChart } from '../public/multi-timer-chart.ts'
+import {
+    TIMER_TYPE_AUDIO_CONTEXT,
+    TIMER_TYPE_AUDIO_WORKLET,
+    TIMER_TYPE_ELASTIC_AUDIO_WORKLET,
+    TIMER_TYPE_OPTIONS,
+    getTimerTypeDescription,
+    type TimerType,
+} from '../src/timer-types'
 
 interface TimerEvent {
     timePassed: number
@@ -65,6 +74,43 @@ let cpuStressAnimationId: number | null = null
 let midiOutputs: MIDIOutput[] = []
 let audioContext: AudioContext | null = null
 let tickAudioEnabled = false
+const audioTimerTypes = new Set<TimerType>([
+    TIMER_TYPE_AUDIO_CONTEXT,
+    TIMER_TYPE_AUDIO_WORKLET,
+    TIMER_TYPE_ELASTIC_AUDIO_WORKLET,
+])
+
+const renderTimerTypeOptions = (selectedType: TimerType) => {
+    return TIMER_TYPE_OPTIONS.map((timerType) => {
+        const selected = timerType === selectedType ? 'selected' : ''
+        return `<option value="${timerType}" ${selected}>${getTimerTypeDescription(timerType)}</option>`
+    }).join('')
+}
+
+const populateTimerTypeSelect = (select: HTMLSelectElement | null, selectedType: TimerType = TIMER_TYPE_AUDIO_CONTEXT) => {
+    if (!select) {
+        return
+    }
+
+    select.innerHTML = renderTimerTypeOptions(selectedType)
+    select.value = selectedType
+}
+
+const ensureAudioContext = async () => {
+    if (!audioContext) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+        if (!AudioContextClass) {
+            throw new Error('Web Audio API not supported in this browser')
+        }
+        audioContext = new AudioContextClass()
+    }
+
+    if (audioContext.state === 'suspended') {
+        await audioContext.resume()
+    }
+
+    return audioContext
+}
 
 // ===== INITIALIZATION =====
 
@@ -217,7 +263,7 @@ const renderTimersList = () => {
         statusEl.textContent = `${timer.bpm} BPM ${running ? '▶' : '⏸'}`
 
         const typeBadge = fragment.querySelector('.timer-type-badge') as HTMLElement
-        typeBadge.textContent = timer.workerType || 'Unknown'
+        typeBadge.textContent = getTimerTypeDescription(timer.workerType)
 
         const toggleBtn = fragment.querySelector('.timer-toggle') as HTMLButtonElement
         toggleBtn.textContent = running ? 'Stop' : 'Start'
@@ -298,11 +344,7 @@ const showTimerDetails = (timerId: string) => {
             <div class="timer-detail-group">
                 <label>Worker Type</label>
                 <select class="timer-worker-type-select" ${running ? 'disabled' : ''}>
-                    <option value="audiocontext" ${config.workerType === 'audiocontext' ? 'selected' : ''}>AudioContext</option>
-                    <option value="audioworklet" ${config.workerType === 'audioworklet' ? 'selected' : ''}>AudioWorklet</option>
-                    <option value="rolling" ${config.workerType === 'rolling' ? 'selected' : ''}>Rolling</option>
-                    <option value="setinterval" ${config.workerType === 'setinterval' ? 'selected' : ''}>SetInterval</option>
-                    <option value="settimeout" ${config.workerType === 'settimeout' ? 'selected' : ''}>SetTimeout</option>
+                    ${renderTimerTypeOptions(config.workerType)}
                 </select>
             </div>
             <div class="timer-detail-group">
@@ -374,13 +416,14 @@ const showTimerDetails = (timerId: string) => {
         const running = runningTimers.get(timerId)
         if (running) {
             const interval = 60000 / bpm
-            running.timer.setTimeBetween?.(interval)
+            running.timer.timeBetween = interval
         }
     })
 
     workerTypeSelect.addEventListener('change', (e) => {
-        const workerType = (e.target as HTMLSelectElement).value
+        const workerType = (e.target as HTMLSelectElement).value as TimerType
         multiTimerManager.updateTimerConfig(timerId, { workerType })
+        renderTimersList()
     })
 
     metronomeToggle.addEventListener('change', (e) => {
@@ -407,32 +450,11 @@ const startTimer = async (timerId: string) => {
     try {
         initMultiChart()
         const interval = 60000 / config.bpm
+        const timer = audioTimerTypes.has(config.workerType)
+            ? new AudioTimer(await ensureAudioContext(), config.workerType)
+            : new Timer({ bpm: config.bpm, type: config.workerType })
 
-        // Always initialize AudioContext for AudioTimer
-        if (!audioContext) {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
-            if (!AudioContextClass) {
-                throw new Error('Web Audio API not supported in this browser')
-            }
-            audioContext = new AudioContextClass()
-            console.log('AudioContext initialized:', {
-                state: audioContext.state,
-                sampleRate: audioContext.sampleRate,
-                currentTime: audioContext.currentTime
-            })
-        }
-
-        // Resume context if suspended (required on some browsers)
-        if (audioContext.state === 'suspended') {
-            console.log('AudioContext is suspended, attempting to resume...')
-            await audioContext.resume()
-        }
-
-        // Determine if using worklet based on worker type
-        const isWorklet = config.workerType === 'audioworklet'
-
-        // Always use AudioTimer with AudioContext
-        const timer = new AudioTimer(audioContext, isWorklet)
+        timer.BPM = config.bpm
 
         const stats = {
             ticks: 0,
@@ -576,7 +598,7 @@ if (createTimerBtn) {
     createTimerBtn.addEventListener('click', () => {
     const name = newTimerNameInput.value.trim() || `Timer ${multiTimerManager.getAllTimers().length + 1}`
     const bpm = parseInt(newTimerBpmInput.value)
-    const workerType = newTimerWorkerSelect.value
+    const workerType = newTimerWorkerSelect.value as TimerType
     const metronomeEnabled = newTimerMetronomeCheckbox.checked
 
     const timerId = multiTimerManager.addTimer({
@@ -599,7 +621,7 @@ if (createTimerBtn) {
     // Clear form
     newTimerNameInput.value = ''
     syncBpmControls(120)
-    newTimerWorkerSelect.value = 'audiocontext'
+    populateTimerTypeSelect(newTimerWorkerSelect, TIMER_TYPE_AUDIO_CONTEXT)
     newTimerMetronomeCheckbox.checked = false
 
     renderTimersList()
@@ -728,6 +750,7 @@ const initApp = () => {
     }
 
     // Render initial state
+    populateTimerTypeSelect(newTimerWorkerSelect, TIMER_TYPE_AUDIO_CONTEXT)
     renderTimersList()
     initTheme()
 }

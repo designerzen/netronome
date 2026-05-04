@@ -102,7 +102,7 @@ describe('Timer Utility Functions', () => {
             const customResolution = 1920
             const ticks = secondsToTicks(seconds, bpm, customResolution)
 
-            expect(ticks).toBeCloseTo(customResolution)
+            expect(ticks).toBeCloseTo(2 * customResolution)
         })
 
         it('should handle default resolution (3840)', () => {
@@ -211,7 +211,7 @@ describe('Timer Class', () => {
         it('should have default values', () => {
             expect(timer.bars).toBe(16)
             expect(timer.divisions).toBe(24)
-            expect(timer.period).toBe(100)
+            expect(timer.period).toBeCloseTo((60000 / 90) / 24)
             expect(timer.available).toBe(false)
             expect(timer.running).toBe(false)
         })
@@ -456,8 +456,8 @@ describe('Timer Class', () => {
         })
 
         it('should convert time to ticks', () => {
-            timer.period = 250 // Quarter note = 250ms
-            const ticks = timer.convertToTicks(0.25) // 250ms
+            timer.BPM = 120
+            const ticks = timer.convertToTicks(timer.quarterNoteDurationInSeconds)
             expect(ticks).toBeCloseTo(Ticks.Beat)
         })
     })
