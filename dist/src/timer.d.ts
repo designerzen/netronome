@@ -1,9 +1,9 @@
-import type { WorkerWrapper } from './vite-env';
+import type { WorkerWrapper } from './timer-interfaces';
 import { TimerOptions } from './timer-options';
 import { type TimerType } from './timer-types';
 import type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces';
-export declare const MAX_BARS_ALLOWED = 32;
 export type { ITimerControl, TimingHandler, TimerCallbackEvent };
+export declare const MAX_BARS_ALLOWED = 32;
 /**
  * Resolve a timer type string to its corresponding Worker constructor
  * @param timerType Timer type ID string (e.g., TIMER_TYPE_AUDIO_CONTEXT)
@@ -34,8 +34,8 @@ export default class Timer {
     isCompatible: boolean;
     timingWorkHandler: TimingHandler;
     audioContext?: AudioContext;
-    loaded: Promise<void>;
     callback?: (event: TimerCallbackEvent) => void;
+    loaded: Promise<void>;
     getNow: () => number;
     get options(): TimerOptions;
     /**
@@ -59,6 +59,10 @@ export default class Timer {
      * @returns number The current time as of now
      */
     get now(): number;
+    /**
+     * Time conversion factor
+     */
+    get clockUnitsToSecondsScale(): number;
     /**
      * Fetch current bar length in milliseconds
      * @returns number bar length in milliseconds
@@ -84,7 +88,6 @@ export default class Timer {
      * @returns number total bars
      */
     get barsElapsed(): number;
-    get elapsedSinceLastTick(): number;
     /**
      * Fetch total bar quantity
      * @returns number total bars
@@ -141,6 +144,7 @@ export default class Timer {
      * @returns number ticks per second
      */
     get ticksPerSecond(): number;
+    get elapsedSinceLastTick(): number;
     get swing(): number;
     get isAtStart(): boolean;
     get isAtStartOfBar(): boolean;
@@ -160,6 +164,7 @@ export default class Timer {
      * @param value How many bars to have in a measure
      */
     set totalBars(value: number);
+    setBars(value: number): number;
     /**
      * Set the current timing using a BPM where
      * one beat in milliseconds =  60,000 / BPM
@@ -205,6 +210,12 @@ export default class Timer {
      * @returns number of ticks
      */
     convertToTicks(time: number): number;
+    getExpectedElapsed(intervals: number): number;
+    getCurrentPeriodInSeconds(): number;
+    updateElapsedScale(timePassed: number): void;
+    getTransportElapsedNow(): number;
+    resetTransportTiming(anchorClockTime?: number): void;
+    captureTempoChangeAnchor(anchorClockTime?: number): void;
     createTick(intervals: number, timePased: number): void;
     /**
      * Set the worklet as the main timing mechanism
@@ -353,7 +364,8 @@ export default class Timer {
      * @param intervals number of intervals
      * @param lag timing lag
      */
-    onTick(timePassed: number, expected: number, drift?: number, level?: number, intervals?: number, lag?: number): void;
+    onTick(timePassed: number, expected: number, drift?: number, level?: number, intervals?: number, lag?: number, advanceDivisions?: boolean): void;
 }
 export { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, TIMER_TYPES, isValidTimerType, getTimerTypeDescription, type TimerType, } from './timer-types';
+export { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE, convertBPMToPeriod, convertPeriodToBPM, convertMIDIClockIntervalToBPM, secondsToTicks, formatTimeStampFromSeconds, } from './time-utils';
 //# sourceMappingURL=timer.d.ts.map

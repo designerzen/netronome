@@ -1,4 +1,5 @@
 import Timer from "./timer";
+import { type TimerType } from './timer-types';
 export default class AudioTimer extends Timer {
     audioContext?: AudioContext;
     /**
@@ -7,16 +8,20 @@ export default class AudioTimer extends Timer {
      */
     get now(): number;
     /**
+     * Time Scale factor
+     */
+    get clockUnitsToSecondsScale(): number;
+    /**
      * Create an AudioTimer with an AudioContext
      * Uses AudioWorklet timing if available, falls back to AudioContext worker
      * @param audioContext The AudioContext to use for accurate timing
-     * @param useAudioWorklet If true, attempts to use AudioWorklet (recommended). If false, uses AudioContext worker.
+     * @param timerType If true, attempts to use AudioWorklet (recommended). If false, uses AudioContext worker.
      */
-    constructor(audioContext: AudioContext, useAudioWorklet?: boolean);
+    constructor(audioContext: AudioContext, timerType?: TimerType | boolean);
     /**
-     *
+     * Start this timer
      * @param {Function} callback
-     * @param {*} options
+     * @param {Object} options
      */
     startTimer(callback?: ((event: any) => void), options?: Record<string, unknown>): Promise<{
         time: number;

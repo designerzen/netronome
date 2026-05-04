@@ -2,7 +2,10 @@
  * Timer interfaces and types
  */
 import type { TimerType } from './timer-types';
-import type { WorkerWrapper } from './vite-env';
+/**
+ * Worker factory type - returns a new Worker instance
+ */
+export type WorkerWrapper = () => Worker;
 /**
  * Timer method signatures for type checking
  */
@@ -27,6 +30,7 @@ export interface TimerCallbackEvent {
     barsElapsed: number;
     elapsed: number;
     timePassed: number;
+    /** Ideal transport elapsed since timer start. Live tempo changes keep this continuous and only affect future spacing. */
     expected: number;
     drift: number;
     level: number;
