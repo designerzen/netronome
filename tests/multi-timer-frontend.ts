@@ -18,7 +18,7 @@ import {
 
 interface RunningTimer {
     id: string
-    timer: any // Timer instance from createTimer
+    timer: Timer
     stats: {
         ticks: number
         lags: number[]

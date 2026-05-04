@@ -1,6 +1,6 @@
 import Timer from "./timer"
 
-import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, isWorkletTimerType, type TimerType } from './timer-types'
+import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, isWorkletTimerType, type TimerType } from './timer-types'
 import type { AudioTimerOptions } from './timer-interfaces'
 
 const DEFAULT_AUDIO_TIMER_OPTIONS: AudioTimerOptions = {
@@ -13,9 +13,6 @@ const DEFAULT_AUDIO_TIMER_OPTIONS: AudioTimerOptions = {
 export default class AudioTimer extends Timer {
 	
 	audioContext?: AudioContext
-	
-	// NB. do *NOT* enable the following line as it will overwrite the var on super()
-	// audioContext
 
 	/**
 	 * Accurate time in milliseconds
@@ -25,6 +22,9 @@ export default class AudioTimer extends Timer {
 		return this.audioContext ? this.audioContext.currentTime : performance.now() 
 	}
 
+	/**
+	 * Time Scale factor
+	 */
 	get clockUnitsToSecondsScale(): number {
 		return 1
 	}
@@ -46,7 +46,7 @@ export default class AudioTimer extends Timer {
 			type: resolvedTimerType
 		}
 
-		super( timerOptions, isWorkletTimerType(resolvedTimerType) || resolvedTimerType === TIMER_TYPE_ELASTIC_AUDIO_WORKLET )
+		super( timerOptions, isWorkletTimerType(resolvedTimerType) )
 		if (!this.audioContext)
 		{
 			throw Error('No AudioContext specified')
@@ -54,9 +54,9 @@ export default class AudioTimer extends Timer {
 	}
 
 	/**
-	 * 
+	 * Start this timer
 	 * @param {Function} callback 
-	 * @param {*} options 
+	 * @param {Object} options 
 	 */
 	async startTimer( callback?: ((event: any) => void), options: Record<string, unknown> = {} ){
 		

@@ -86,6 +86,7 @@ export default class Timer {
 
     startTime: number = -1
     period: number = 100
+    
     #expectedAtTempoChange: number = 0
     #intervalsAtTempoChange: number = 0
     #lastTickIntervals: number = 0
@@ -114,15 +115,16 @@ export default class Timer {
     timingWorkHandler: TimingHandler = null
     audioContext?: AudioContext
 
-    loaded: Promise<void>
-
     #options:TimerOptions
-
-    callback?: (event: TimerCallbackEvent) => void
 
     // Epoch synchronization
     #epoch: Epoch = Epoch.getInstance()
     #synchronizationOffset: number = 0
+
+    callback?: (event: TimerCallbackEvent) => void
+
+    // Promise to monitor for availability
+    loaded: Promise<void>
 
     // we overwrite this with an audioContext if available
     getNow = (): number => performance.timeOrigin + performance.now()
@@ -218,10 +220,6 @@ export default class Timer {
         return Math.floor(this.totalBarsElapsed / this.bars)
     }
 
-    get elapsedSinceLastTick(): number {
-        return this.now - this.lastRecordedTime
-    }
-
     /**
      * Fetch total bar quantity
      * @returns number total bars
@@ -315,6 +313,12 @@ export default class Timer {
     get ticksPerSecond(): number {
         return Ticks.Beat / this.quarterNoteDurationInSeconds
     }
+
+    
+    get elapsedSinceLastTick(): number {
+        return this.now - this.lastRecordedTime
+    }
+
 
     get swing(): number {
         return this.swingOffset / this.divisions
