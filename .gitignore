@@ -16,6 +16,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.tgz
 
 *.md
 !readme.md
@@ -36,6 +37,7 @@ lib/
 # Vite
 .vite/
 .vite-cert/
+.vite-build-check/
 certs/
 
 # Vitest
