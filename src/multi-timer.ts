@@ -8,6 +8,7 @@ import { TIMER_TYPE_AUDIO_CONTEXT, type TimerType } from '../src/timer-types'
 export interface MultiTimerConfig {
     id: string
     bpm: number
+    swing: number
     name: string
     workerType: TimerType
     color: string
@@ -51,6 +52,7 @@ export class MultiTimerManager {
         const timerConfig: MultiTimerConfig = {
             id,
             bpm: config.bpm || 120,
+            swing: config.swing ?? 0,
             name: config.name || `Timer ${this.timers.size + 1}`,
             workerType: config.workerType || TIMER_TYPE_AUDIO_CONTEXT,
             color,

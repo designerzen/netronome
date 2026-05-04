@@ -6,6 +6,7 @@ import { type TimerType } from '../src/timer-types';
 export interface MultiTimerConfig {
     id: string;
     bpm: number;
+    swing: number;
     name: string;
     workerType: TimerType;
     color: string;

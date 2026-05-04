@@ -37,6 +37,8 @@ const getElement = <T extends HTMLElement>(id: string): T | null => {
 const newTimerNameInput = getElement<HTMLInputElement>('new-timer-name')
 const newTimerBpmInput = getElement<HTMLInputElement>('new-timer-bpm')
 const newTimerBpmSlider = getElement<HTMLInputElement>('new-timer-bpm-slider')
+const newTimerSwingSlider = getElement<HTMLInputElement>('new-timer-swing')
+const newTimerSwingValue = getElement<HTMLElement>('new-timer-swing-value')
 const newTimerWorkerSelect = getElement<HTMLSelectElement>('new-timer-worker')
 const newTimerAccurateCheckbox = getElement<HTMLInputElement>('new-timer-accurate')
 const newTimerMetronomeCheckbox = getElement<HTMLInputElement>('new-timer-metronome')
@@ -224,6 +226,18 @@ const syncBpmControls = (value: number) => {
     newTimerBpmSlider.value = value.toString()
 }
 
+const formatSwingLabel = (value: number) => `${Math.round(value * 100)}%`
+
+const syncSwingControls = (value: number) => {
+    if (newTimerSwingSlider) {
+        newTimerSwingSlider.value = value.toString()
+    }
+
+    if (newTimerSwingValue) {
+        newTimerSwingValue.textContent = formatSwingLabel(value)
+    }
+}
+
 // ===== UI RENDERING =====
 
 const renderTimersList = () => {
@@ -342,6 +356,10 @@ const showTimerDetails = (timerId: string) => {
                 <input type="number" class="timer-bpm-input" value="${config.bpm}" min="20" max="300" ${running ? 'disabled' : ''} />
             </div>
             <div class="timer-detail-group">
+                <label for="timer-swing-input-${timerId}">Swing ${formatSwingLabel(config.swing)}</label>
+                <input id="timer-swing-input-${timerId}" type="range" class="timer-swing-input" value="${config.swing}" min="0" max="1" step="0.01" />
+            </div>
+            <div class="timer-detail-group">
                 <label>Worker Type</label>
                 <select class="timer-worker-type-select" ${running ? 'disabled' : ''}>
                     ${renderTimerTypeOptions(config.workerType)}
@@ -398,6 +416,7 @@ const showTimerDetails = (timerId: string) => {
     // Add event listeners
     const nameInput = timerDetailsContent.querySelector('.timer-name-input') as HTMLInputElement
     const bpmInput = timerDetailsContent.querySelector('.timer-bpm-input') as HTMLInputElement
+    const swingInput = timerDetailsContent.querySelector('.timer-swing-input') as HTMLInputElement
     const workerTypeSelect = timerDetailsContent.querySelector('.timer-worker-type-select') as HTMLSelectElement
     const metronomeToggle = timerDetailsContent.querySelector('.timer-metronome-toggle') as HTMLInputElement
     const startBtn = timerDetailsContent.querySelector('.timer-detail-start') as HTMLButtonElement
@@ -417,6 +436,21 @@ const showTimerDetails = (timerId: string) => {
         if (running) {
             const interval = 60000 / bpm
             running.timer.timeBetween = interval
+        }
+    })
+
+    swingInput.addEventListener('input', (e) => {
+        const swing = parseFloat((e.target as HTMLInputElement).value)
+        multiTimerManager.updateTimerConfig(timerId, { swing })
+
+        const label = swingInput.previousElementSibling
+        if (label) {
+            label.textContent = `Swing ${formatSwingLabel(swing)}`
+        }
+
+        const running = runningTimers.get(timerId)
+        if (running?.timer) {
+            running.timer.swing = swing
         }
     })
 
@@ -455,6 +489,7 @@ const startTimer = async (timerId: string) => {
             : new Timer({ bpm: config.bpm, type: config.workerType })
 
         timer.BPM = config.bpm
+        timer.swing = config.swing
 
         const stats = {
             ticks: 0,
@@ -594,15 +629,23 @@ if (newTimerBpmSlider) {
     })
 }
 
+if (newTimerSwingSlider) {
+    newTimerSwingSlider.addEventListener('input', (e) => {
+        syncSwingControls(parseFloat((e.target as HTMLInputElement).value))
+    })
+}
+
 if (createTimerBtn) {
     createTimerBtn.addEventListener('click', () => {
     const name = newTimerNameInput.value.trim() || `Timer ${multiTimerManager.getAllTimers().length + 1}`
     const bpm = parseInt(newTimerBpmInput.value)
+    const swing = newTimerSwingSlider ? parseFloat(newTimerSwingSlider.value) : 0
     const workerType = newTimerWorkerSelect.value as TimerType
     const metronomeEnabled = newTimerMetronomeCheckbox.checked
 
     const timerId = multiTimerManager.addTimer({
         bpm,
+        swing,
         name,
         workerType,
         metronomeEnabled
@@ -621,6 +664,7 @@ if (createTimerBtn) {
     // Clear form
     newTimerNameInput.value = ''
     syncBpmControls(120)
+    syncSwingControls(0)
     populateTimerTypeSelect(newTimerWorkerSelect, TIMER_TYPE_AUDIO_CONTEXT)
     newTimerMetronomeCheckbox.checked = false
 
@@ -753,6 +797,7 @@ const initApp = () => {
     populateTimerTypeSelect(newTimerWorkerSelect, TIMER_TYPE_AUDIO_CONTEXT)
     renderTimersList()
     initTheme()
+    syncSwingControls(0)
 }
 
 // Ensure DOM is ready before rendering
