@@ -301,17 +301,19 @@ describe('Timer Timing Stability', () => {
     it('should sync swing timing accurately', () => {
       timer.BPM = 120
       timer.divisions = 24
-      timer.swing = 0.5 // Swing every other beat
-      
-      // Verify swing calculations
-      for (let i = 0; i < 24; i++) {
-        timer.divisionsElapsed = i
-        if (i % timer.swingOffset === 0) {
-          expect(timer.isSwungBeat).toBe(true)
-        } else {
-          expect(timer.isSwungBeat).toBe(false)
-        }
-      }
+      timer.swing = 0.5
+
+      const period = timer.getCurrentPeriodInSeconds()
+
+      expect(timer.getExpectedElapsed(0)).toBeCloseTo(0, 10)
+      expect(timer.getExpectedElapsed(1)).toBeCloseTo(period * 1.5, 10)
+      expect(timer.getExpectedElapsed(2)).toBeCloseTo(period * 2, 10)
+      expect(timer.getExpectedElapsed(3)).toBeCloseTo(period * 3.5, 10)
+
+      timer.divisionsElapsed = 1
+      expect(timer.isSwungBeat).toBe(true)
+      timer.divisionsElapsed = 2
+      expect(timer.isSwungBeat).toBe(false)
     })
   })
 

@@ -98,7 +98,7 @@ export default class Timer {
 
     divisions: number = 24	// 24 quarter notes in a bar
     bars: number = 16		// 16 bars in a measure
-    swingOffset: number = 0	// from 0 -> divisions
+    swingOffset: number = 0	// ratio from 0 -> 1 of one subdivision delay applied to every second beat
 
     divisionsElapsed: number = 0
     totalBarsElapsed: number = 0
@@ -326,7 +326,7 @@ export default class Timer {
 
 
     get swing(): number {
-        return this.swingOffset / this.divisions
+        return this.swingOffset
     }
 
 
@@ -351,7 +351,7 @@ export default class Timer {
         return this.beatProgress % 0.5 === 0
     }
     get isSwungBeat(): boolean {
-        return this.divisionsElapsed % this.swingOffset === 0
+        return this.swingOffset > 0 && this.divisionsElapsed % 2 === 1
     }
     get isUsingExternalTrigger(): boolean {
         return this.#bypassed
@@ -426,7 +426,7 @@ export default class Timer {
      * to determine when the "beat" should occur
      */
     set swing(value: number) {
-        this.swingOffset = value * this.divisions
+        this.swingOffset = Math.min(1, Math.max(0, value))
     }
 
     constructor(options: TimerOptions = DEFAULT_TIMER_OPTIONS, isWorklet?: boolean) {
@@ -546,8 +546,23 @@ export default class Timer {
         return time * this.ticksPerSecond
     }
 
+    getSwingDelay(period: number = this.getCurrentPeriodInSeconds()): number {
+        return this.swingOffset > 0 ? period * this.swingOffset : 0
+    }
+
+    getSwingAdjustment(intervals: number, period: number = this.getCurrentPeriodInSeconds()): number {
+        return this.swingOffset > 0 && intervals % 2 === 1 ? this.getSwingDelay(period) : 0
+    }
+
     getExpectedElapsed(intervals: number): number {
-        return this.#expectedAtTempoChange + Math.max(0, intervals - this.#intervalsAtTempoChange) * this.getCurrentPeriodInSeconds()
+        const period = this.getCurrentPeriodInSeconds()
+        const relativeIntervals = Math.max(0, intervals - this.#intervalsAtTempoChange)
+        const anchorAdjustment = this.getSwingAdjustment(this.#intervalsAtTempoChange, period)
+        const intervalAdjustment = this.getSwingAdjustment(intervals, period)
+
+        return this.#expectedAtTempoChange
+            + relativeIntervals * period
+            + (intervalAdjustment - anchorAdjustment)
     }
 
     getCurrentPeriodInSeconds(): number {
@@ -609,7 +624,7 @@ export default class Timer {
         // How long has elapsed according to our worker
         const timePassed = timePased
         // how much spill over the expected timestamp is there
-        const lag = timePassed % timeBetweenPeriod
+        const lag = this.swingOffset > 0 ? timePassed - expected : timePassed % timeBetweenPeriod
         // should be 0 if the timer is working...
         const drift = timePassed - this.timeElapsed
         // deterministic intervals not neccessary
@@ -1203,10 +1218,6 @@ export default class Timer {
                 this.divisionsElapsed = 0
             }
         }
-
-        // let us determine if we are on a swung beat
-        const swung = this.divisionsElapsed % this.swingOffset === 0
-
         this.callback && this.callback({
             bar: this.currentBar,
             bars: this.totalBars,

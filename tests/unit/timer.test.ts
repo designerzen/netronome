@@ -365,14 +365,14 @@ describe('Timer Class', () => {
         })
 
         it('should detect swung beats', () => {
-            timer.swingOffset = 6 // Every 6 divisions
+            timer.swing = 0.5
             timer.divisionsElapsed = 0
-            expect(timer.isSwungBeat).toBe(true)
-
-            timer.divisionsElapsed = 6
-            expect(timer.isSwungBeat).toBe(true)
+            expect(timer.isSwungBeat).toBe(false)
 
             timer.divisionsElapsed = 1
+            expect(timer.isSwungBeat).toBe(true)
+
+            timer.divisionsElapsed = 2
             expect(timer.isSwungBeat).toBe(false)
         })
 
@@ -417,7 +417,8 @@ describe('Timer Class', () => {
 
         it('should set swing', () => {
             timer.swing = 0.25
-            expect(timer.swingOffset).toBeCloseTo(0.25 * timer.divisions)
+            expect(timer.swingOffset).toBeCloseTo(0.25)
+            expect(timer.swing).toBeCloseTo(0.25)
         })
 
         it('should set bars', () => {
@@ -459,6 +460,26 @@ describe('Timer Class', () => {
             timer.BPM = 120
             const ticks = timer.convertToTicks(timer.quarterNoteDurationInSeconds)
             expect(ticks).toBeCloseTo(Ticks.Beat)
+        })
+
+        it('should calculate swing delay as a subdivision ratio', () => {
+            timer.BPM = 120
+            timer.swing = 0.5
+
+            expect(timer.getCurrentPeriodInSeconds()).toBeCloseTo(SECONDS_PER_MINUTE / 120 / timer.divisions, 10)
+            expect(timer.getSwingDelay()).toBeCloseTo(timer.getCurrentPeriodInSeconds() * 0.5, 10)
+        })
+
+        it('should offset every second beat in expected timing', () => {
+            timer.BPM = 120
+            timer.swing = 0.5
+
+            const period = timer.getCurrentPeriodInSeconds()
+
+            expect(timer.getExpectedElapsed(0)).toBeCloseTo(0, 10)
+            expect(timer.getExpectedElapsed(1)).toBeCloseTo(period * 1.5, 10)
+            expect(timer.getExpectedElapsed(2)).toBeCloseTo(period * 2, 10)
+            expect(timer.getExpectedElapsed(3)).toBeCloseTo(period * 3.5, 10)
         })
     })
 
