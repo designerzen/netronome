@@ -6,10 +6,21 @@
 interface ChartDataPoint {
     id: string
     lag: number
+    drift?: number
     timePassed: number
+    expected?: number
+    elapsed?: number
     interval: number
     timestamp: number
     color: string
+}
+
+interface TimerMetrics {
+    currentErrorMs: number
+    avgErrorMs: number
+    p95ErrorMs: number
+    currentJitterMs: number
+    avgJitterMs: number
 }
 
 export class MultiTimerChart {
@@ -17,10 +28,9 @@ export class MultiTimerChart {
     private ctx: CanvasRenderingContext2D
     private data: Map<string, ChartDataPoint[]> = new Map()
     private maxDataPoints = 500
-    private animationId: number | null = null
     private colors: Map<string, string> = new Map()
-    private yAxisMax = 50 // milliseconds
-    private padding = { top: 40, right: 40, bottom: 40, left: 60 }
+    private padding = { top: 24, right: 220, bottom: 34, left: 64 }
+    private panelGap = 26
 
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement
@@ -83,94 +93,111 @@ export class MultiTimerChart {
         const width = this.canvas.width
         const height = this.canvas.height
         const isDark = document.documentElement.style.colorScheme === 'dark'
+        const panels = this.getPanels(width, height)
 
-        // Clear canvas
         const bgColor = isDark ? '#1e1e1e' : '#ffffff'
         this.ctx.fillStyle = bgColor
         this.ctx.fillRect(0, 0, width, height)
 
-        // Draw grid and axes
-        this.drawAxes(width, height)
+        const errorScale = this.getScaleMax('error')
+        const jitterScale = this.getScaleMax('jitter')
 
-        // Draw data for each timer
+        this.drawPanelAxes(width, panels.error, 'Timing Error vs Expected', errorScale)
+        this.drawPanelAxes(width, panels.jitter, 'Tick-to-Tick Jitter', jitterScale)
+
         this.data.forEach((timerData, id) => {
             const color = this.colors.get(id)!
-            this.drawTimerData(timerData, color, width, height)
+            this.drawTimerData(timerData, color, width, panels.error, errorScale, 'error')
+            this.drawTimerData(timerData, color, width, panels.jitter, jitterScale, 'jitter')
         })
 
-        // Draw legend
         this.drawLegend(width, height)
     }
 
-    private drawAxes(width: number, height: number): void {
+    private getPanels(width: number, height: number): { error: { top: number; height: number; width: number }; jitter: { top: number; height: number; width: number } } {
+        const chartHeight = height - this.padding.top - this.padding.bottom
+        const panelHeight = Math.max((chartHeight - this.panelGap) / 2, 60)
+        const chartWidth = width - this.padding.left - this.padding.right
+
+        return {
+            error: { top: this.padding.top, height: panelHeight, width: chartWidth },
+            jitter: { top: this.padding.top + panelHeight + this.panelGap, height: panelHeight, width: chartWidth }
+        }
+    }
+
+    private drawPanelAxes(width: number, panel: { top: number; height: number; width: number }, title: string, scaleMax: number): void {
         const textColor = this.getTextColor()
         const gridColor = this.getGridColor()
+        const bottom = panel.top + panel.height
 
         this.ctx.strokeStyle = gridColor
         this.ctx.fillStyle = textColor
         this.ctx.font = '12px monospace'
         this.ctx.lineWidth = 1
 
-        // Y-axis labels (lag in ms)
         const ySteps = 5
         for (let i = 0; i <= ySteps; i++) {
-            const y = this.padding.top + (height - this.padding.top - this.padding.bottom) * (1 - i / ySteps)
-            const value = (this.yAxisMax * i) / ySteps
+            const y = panel.top + panel.height * (1 - i / ySteps)
+            const value = (scaleMax * i) / ySteps
 
-            // Grid line
             this.ctx.beginPath()
             this.ctx.moveTo(this.padding.left, y)
             this.ctx.lineTo(width - this.padding.right, y)
             this.ctx.stroke()
 
-            // Y-axis label
             this.ctx.textAlign = 'right'
             this.ctx.textBaseline = 'middle'
             this.ctx.fillText(`${value.toFixed(1)}ms`, this.padding.left - 10, y)
         }
 
-        // X-axis
         this.ctx.strokeStyle = textColor
         this.ctx.lineWidth = 2
         this.ctx.beginPath()
-        this.ctx.moveTo(this.padding.left, height - this.padding.bottom)
-        this.ctx.lineTo(width - this.padding.right, height - this.padding.bottom)
+        this.ctx.moveTo(this.padding.left, bottom)
+        this.ctx.lineTo(width - this.padding.right, bottom)
         this.ctx.stroke()
 
-        // Y-axis
         this.ctx.beginPath()
-        this.ctx.moveTo(this.padding.left, this.padding.top)
-        this.ctx.lineTo(this.padding.left, height - this.padding.bottom)
+        this.ctx.moveTo(this.padding.left, panel.top)
+        this.ctx.lineTo(this.padding.left, bottom)
         this.ctx.stroke()
 
-        // Axis labels
         this.ctx.font = 'bold 14px monospace'
-        this.ctx.textAlign = 'center'
-        this.ctx.textBaseline = 'top'
-        this.ctx.fillText('Lag (ms)', this.padding.left - 30, this.padding.top / 2)
+        this.ctx.textAlign = 'left'
+        this.ctx.textBaseline = 'bottom'
+        this.ctx.fillText(title, this.padding.left, panel.top - 6)
 
+        this.ctx.font = '11px monospace'
         this.ctx.textAlign = 'center'
         this.ctx.textBaseline = 'top'
-        this.ctx.fillText('Time', width / 2, height - 10)
+        this.ctx.fillText('Recent ticks', this.padding.left + panel.width / 2, bottom + 8)
     }
 
-    private drawTimerData(data: ChartDataPoint[], color: string, width: number, height: number): void {
+    private drawTimerData(
+        data: ChartDataPoint[],
+        color: string,
+        width: number,
+        panel: { top: number; height: number; width: number },
+        scaleMax: number,
+        metric: 'error' | 'jitter'
+    ): void {
         if (data.length < 2) return
 
-        const chartWidth = width - this.padding.left - this.padding.right
-        const chartHeight = height - this.padding.top - this.padding.bottom
+        const values = this.getMetricSeries(data, metric)
+        const bottom = panel.top + panel.height
 
         this.ctx.strokeStyle = color
-        this.ctx.lineWidth = 2
+        this.ctx.lineWidth = metric === 'error' ? 2.2 : 1.5
         this.ctx.lineCap = 'round'
         this.ctx.lineJoin = 'round'
+        this.ctx.setLineDash(metric === 'error' ? [] : [5, 5])
 
         this.ctx.beginPath()
 
-        data.forEach((point, index) => {
-            const x = this.padding.left + (index / (data.length - 1 || 1)) * chartWidth
-            const lagNormalized = Math.min(point.lag, this.yAxisMax) / this.yAxisMax
-            const y = this.padding.top + chartHeight * (1 - lagNormalized)
+        values.forEach((value, index) => {
+            const x = this.padding.left + (index / (values.length - 1 || 1)) * panel.width
+            const normalized = Math.min(value, scaleMax) / scaleMax
+            const y = bottom - normalized * panel.height
 
             if (index === 0) {
                 this.ctx.moveTo(x, y)
@@ -180,16 +207,16 @@ export class MultiTimerChart {
         })
 
         this.ctx.stroke()
+        this.ctx.setLineDash([])
 
-        // Draw data points (circles)
         this.ctx.fillStyle = color
-        const lastPoint = data[data.length - 1]
-        const x = this.padding.left + chartWidth
-        const lagNormalized = Math.min(lastPoint.lag, this.yAxisMax) / this.yAxisMax
-        const y = this.padding.top + chartHeight * (1 - lagNormalized)
+        const lastValue = values[values.length - 1]
+        const x = this.padding.left + panel.width
+        const normalized = Math.min(lastValue, scaleMax) / scaleMax
+        const y = bottom - normalized * panel.height
 
         this.ctx.beginPath()
-        this.ctx.arc(x, y, 3, 0, Math.PI * 2)
+        this.ctx.arc(x, y, metric === 'error' ? 3.5 : 2.5, 0, Math.PI * 2)
         this.ctx.fill()
     }
 
@@ -201,23 +228,89 @@ export class MultiTimerChart {
         this.ctx.textAlign = 'left'
         this.ctx.textBaseline = 'top'
 
-        let legendY = 10
-        let legendX = width - 200
+        let legendY = 14
+        const legendX = width - this.padding.right + 20
+
+        this.ctx.font = 'bold 12px monospace'
+        this.ctx.fillStyle = textColor
+        this.ctx.fillText('Useful metrics', legendX, legendY)
+        legendY += 20
+        this.ctx.font = '11px monospace'
 
         this.data.forEach((timerData, id) => {
             const color = this.colors.get(id)!
-            const lastPoint = timerData[timerData.length - 1]
+            const metrics = this.summarizeTimer(timerData)
 
-            // Color indicator
             this.ctx.fillStyle = color
             this.ctx.fillRect(legendX, legendY, 12, 12)
 
-            // Label and value
             this.ctx.fillStyle = textColor
-            const label = `${id}: ${lastPoint.lag.toFixed(1)}ms`
-            this.ctx.fillText(label, legendX + 18, legendY)
-
-            legendY += 18
+            this.ctx.fillText(id, legendX + 18, legendY)
+            legendY += 14
+            this.ctx.fillText(`err now ${metrics.currentErrorMs.toFixed(2)}ms`, legendX + 18, legendY)
+            legendY += 14
+            this.ctx.fillText(`err avg ${metrics.avgErrorMs.toFixed(2)}ms`, legendX + 18, legendY)
+            legendY += 14
+            this.ctx.fillText(`jit avg ${metrics.avgJitterMs.toFixed(2)}ms`, legendX + 18, legendY)
+            legendY += 14
+            this.ctx.fillText(`err p95 ${metrics.p95ErrorMs.toFixed(2)}ms`, legendX + 18, legendY)
+            legendY += 20
         })
+    }
+
+    private getMetricSeries(data: ChartDataPoint[], metric: 'error' | 'jitter'): number[] {
+        const errorSeries = data.map((point) => this.toErrorMs(point))
+
+        if (metric === 'error') {
+            return errorSeries
+        }
+
+        return errorSeries.map((value, index) => {
+            if (index === 0) {
+                return 0
+            }
+
+            return Math.abs(value - errorSeries[index - 1]!)
+        })
+    }
+
+    private toErrorMs(point: ChartDataPoint): number {
+        if (typeof point.expected === 'number') {
+            return Math.abs(point.timePassed - point.expected) * 1000
+        }
+
+        return Math.abs(point.lag) * 1000
+    }
+
+    private getScaleMax(metric: 'error' | 'jitter'): number {
+        const values = Array.from(this.data.values()).flatMap((timerData) => this.getMetricSeries(timerData, metric))
+
+        if (values.length === 0) {
+            return metric === 'error' ? 5 : 2
+        }
+
+        const sorted = [...values].sort((a, b) => a - b)
+        const percentileIndex = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))
+        const baseline = sorted[percentileIndex] || 0
+        const floor = metric === 'error' ? 5 : 2
+
+        return Math.max(floor, baseline * 1.2, sorted[sorted.length - 1]! * 0.75)
+    }
+
+    private summarizeTimer(data: ChartDataPoint[]): TimerMetrics {
+        const errors = this.getMetricSeries(data, 'error')
+        const jitters = this.getMetricSeries(data, 'jitter')
+        const avgErrorMs = errors.reduce((sum, value) => sum + value, 0) / Math.max(errors.length, 1)
+        const avgJitterMs = jitters.reduce((sum, value) => sum + value, 0) / Math.max(jitters.length, 1)
+        const sortedErrors = [...errors].sort((a, b) => a - b)
+        const p95Index = Math.min(sortedErrors.length - 1, Math.floor(sortedErrors.length * 0.95))
+
+        return {
+            currentErrorMs: errors[errors.length - 1] || 0,
+            avgErrorMs,
+            p95ErrorMs: sortedErrors[p95Index] || 0,
+            currentJitterMs: jitters[jitters.length - 1] || 0,
+            avgJitterMs,
+        }
     }
 }

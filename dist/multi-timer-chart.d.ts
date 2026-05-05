@@ -5,7 +5,10 @@
 interface ChartDataPoint {
     id: string;
     lag: number;
+    drift?: number;
     timePassed: number;
+    expected?: number;
+    elapsed?: number;
     interval: number;
     timestamp: number;
     color: string;
@@ -15,10 +18,9 @@ export declare class MultiTimerChart {
     private ctx;
     private data;
     private maxDataPoints;
-    private animationId;
     private colors;
-    private yAxisMax;
     private padding;
+    private panelGap;
     constructor(canvasId: string);
     private resizeCanvas;
     addData(data: ChartDataPoint): void;
@@ -27,9 +29,14 @@ export declare class MultiTimerChart {
     private getTextColor;
     private getGridColor;
     private draw;
-    private drawAxes;
+    private getPanels;
+    private drawPanelAxes;
     private drawTimerData;
     private drawLegend;
+    private getMetricSeries;
+    private toErrorMs;
+    private getScaleMax;
+    private summarizeTimer;
 }
 export {};
 //# sourceMappingURL=multi-timer-chart.d.ts.map

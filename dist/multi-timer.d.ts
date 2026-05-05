@@ -21,6 +21,8 @@ export interface MultiTimerData {
     interval: number;
     timestamp: number;
     drift: number;
+    expected?: number;
+    elapsed?: number;
 }
 export declare class MultiTimerManager {
     private timers;

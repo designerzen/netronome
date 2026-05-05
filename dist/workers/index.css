@@ -477,21 +477,47 @@ tr:last-child td {
   transition: background-color 0.2s, border-color 0.2s;
 }
 
-.timer-tick-indicator {
+.timer-tick-feedback {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.timer-tick-indicator {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   background: currentColor;
   opacity: 0;
-  pointer-events: none;
   box-shadow: 0 0 5px currentColor;
+}
+
+.timer-tick-order {
+  min-width: 2.1rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: transparent;
+  border: 1px solid transparent;
+  opacity: 0;
+  transform: translateY(-2px) scale(0.96);
+  transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
 .timer-item.tick-active .timer-tick-indicator {
   animation: tick-pulse 0.15s ease-out;
+}
+
+.timer-item.tick-sequenced .timer-tick-order {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 
 @keyframes tick-pulse {
@@ -913,21 +939,15 @@ tr:last-child td {
 
 /* Tick Indicator */
 .timer-tick-indicator {
-  position: absolute;
-  top: 8px;
-  right: 8px;
   width: 14px;
   height: 14px;
   border-radius: 50%;
   background: currentColor;
   opacity: 0;
-  pointer-events: none;
   box-shadow: 0 0 8px 2px currentColor, inset 0 0 4px currentColor;
 }
 
 .timer-card .timer-tick-indicator {
-  top: 10px;
-  right: 10px;
   width: 16px;
   height: 16px;
   box-shadow: 0 0 10px 3px currentColor, inset 0 0 6px currentColor;

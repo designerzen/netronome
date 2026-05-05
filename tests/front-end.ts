@@ -22,6 +22,11 @@ interface TimerEvent {
     lag: number
 }
 
+interface TickOrderState {
+    order: number
+    batchId: number
+}
+
 // ===== UI ELEMENTS =====
 
 // Helper function to safely get DOM elements
@@ -76,11 +81,18 @@ let cpuStressAnimationId: number | null = null
 let midiOutputs: MIDIOutput[] = []
 let audioContext: AudioContext | null = null
 let tickAudioEnabled = false
+let currentTickBatchStartedAt = 0
+let currentTickBatchOrder = 0
+let currentTickBatchId = 0
 const audioTimerTypes = new Set<TimerType>([
     TIMER_TYPE_AUDIO_CONTEXT,
     TIMER_TYPE_AUDIO_WORKLET,
     TIMER_TYPE_ELASTIC_AUDIO_WORKLET,
 ])
+const recentTickOrders = new Map<string, TickOrderState>()
+const tickOrderTimeouts = new Map<string, number>()
+const TICK_BATCH_WINDOW_MS = 40
+const TICK_ORDER_DISPLAY_MS = 420
 
 const renderTimerTypeOptions = (selectedType: TimerType) => {
     return TIMER_TYPE_OPTIONS.map((timerType) => {
@@ -238,6 +250,84 @@ const syncSwingControls = (value: number) => {
     }
 }
 
+const formatTickOrder = (order: number) => {
+    if (order % 10 === 1 && order % 100 !== 11) return `${order}st`
+    if (order % 10 === 2 && order % 100 !== 12) return `${order}nd`
+    if (order % 10 === 3 && order % 100 !== 13) return `${order}rd`
+    return `${order}th`
+}
+
+const updateTickFeedback = (timerId: string, color: string, order?: number) => {
+    const timerItem = timersList?.querySelector(`[data-timer-id="${timerId}"]`) as HTMLElement | null
+    if (!timerItem) {
+        return
+    }
+
+    const tickIndicator = timerItem.querySelector('.timer-tick-indicator') as HTMLElement | null
+    const tickOrder = timerItem.querySelector('.timer-tick-order') as HTMLElement | null
+
+    if (tickIndicator) {
+        tickIndicator.style.color = color
+    }
+
+    timerItem.classList.remove('tick-active')
+    void timerItem.offsetWidth
+    timerItem.classList.add('tick-active')
+
+    if (tickOrder && typeof order === 'number') {
+        tickOrder.textContent = formatTickOrder(order)
+        tickOrder.style.background = color
+        tickOrder.style.borderColor = color
+        timerItem.classList.add('tick-sequenced')
+    }
+}
+
+const clearTickFeedback = (timerId: string) => {
+    const timerItem = timersList?.querySelector(`[data-timer-id="${timerId}"]`) as HTMLElement | null
+    if (!timerItem) {
+        return
+    }
+
+    const tickOrder = timerItem.querySelector('.timer-tick-order') as HTMLElement | null
+    timerItem.classList.remove('tick-active', 'tick-sequenced')
+    if (tickOrder) {
+        tickOrder.textContent = ''
+    }
+}
+
+const registerTickOrder = (timerId: string, color: string) => {
+    const now = performance.now()
+
+    if (now - currentTickBatchStartedAt > TICK_BATCH_WINDOW_MS) {
+        currentTickBatchStartedAt = now
+        currentTickBatchOrder = 0
+        currentTickBatchId += 1
+    }
+
+    currentTickBatchOrder += 1
+    recentTickOrders.set(timerId, {
+        order: currentTickBatchOrder,
+        batchId: currentTickBatchId
+    })
+
+    updateTickFeedback(timerId, color, currentTickBatchOrder)
+
+    const existingTimeout = tickOrderTimeouts.get(timerId)
+    if (existingTimeout) {
+        window.clearTimeout(existingTimeout)
+    }
+
+    const timeoutId = window.setTimeout(() => {
+        const state = recentTickOrders.get(timerId)
+        if (state?.batchId === currentTickBatchId) {
+            recentTickOrders.delete(timerId)
+        }
+        clearTickFeedback(timerId)
+    }, TICK_ORDER_DISPLAY_MS)
+
+    tickOrderTimeouts.set(timerId, timeoutId)
+}
+
 // ===== UI RENDERING =====
 
 const renderTimersList = () => {
@@ -266,6 +356,15 @@ const renderTimersList = () => {
         // Update elements
         const tickIndicator = fragment.querySelector('.timer-tick-indicator') as HTMLElement
         tickIndicator.style.color = timer.color
+
+        const tickOrder = fragment.querySelector('.timer-tick-order') as HTMLElement
+        const tickState = recentTickOrders.get(timer.id)
+        if (tickState) {
+            tickOrder.textContent = formatTickOrder(tickState.order)
+            tickOrder.style.background = timer.color
+            tickOrder.style.borderColor = timer.color
+            item.classList.add('tick-sequenced')
+        }
 
         const colorIndicator = fragment.querySelector('.timer-color-indicator') as HTMLElement
         colorIndicator.style.background = timer.color
@@ -516,28 +615,25 @@ const startTimer = async (timerId: string) => {
                 timePassed,
                 interval,
                 timestamp: Date.now(),
-                drift
+                drift,
+                expected,
+                elapsed
             })
 
             multiChart.addData({
                 id: timerId,
                 lag,
                 timePassed,
+                expected,
+                elapsed,
+                drift,
                 interval,
                 timestamp: Date.now(),
                 color: config.color
             })
 
-            // Trigger tick indicator animation and sound
-            const timerItem = timersList.querySelector(`[data-timer-id="${timerId}"]`)
-            if (timerItem) {
-                timerItem.classList.remove('tick-active')
-                // Trigger reflow to restart animation
-                void (timerItem as HTMLElement).offsetWidth
-                timerItem.classList.add('tick-active')
-            }
+            registerTickOrder(timerId, config.color)
 
-            // Play tick sound
             playTickSound()
 
             // Update UI if this timer is selected
