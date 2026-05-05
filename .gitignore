@@ -2,8 +2,7 @@
 node_modules/
 package-lock.json
 yarn.lock
-# pnpm lock file - UNCOMMENT AFTER FIRST pnpm INSTALL
-# pnpm-lock.yaml
+# Commit pnpm lockfile; ignore npm/yarn lockfiles.
 
 
 # Development

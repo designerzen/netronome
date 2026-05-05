@@ -70,6 +70,7 @@
     "vitest": "^4.0.18"
   },
   "scripts": {
+    "preinstall": "node ./scripts/enforce-pnpm.cjs",
     "cert": "mkcert -install && mkcert -cert-file ./certs/localhost.pem -key-file ./certs/localhost-key.pem localhost 127.0.0.1 ::1",
     "build": "vite build && pnpm build:lib",
     "build:lib": "vite build -c vite.lib.config.ts && vite build -c vite.workers.config.ts && tsc -p tsconfig.build.json",
