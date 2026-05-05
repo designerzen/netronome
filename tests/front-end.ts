@@ -68,6 +68,8 @@ interface RunningTimer {
         ticks: number
         lags: number[]
         drifts: number[]
+        lastErrorMs: number
+        lastJitterMs: number
     }
     isRunning: boolean
 }
@@ -282,6 +284,30 @@ const updateTickFeedback = (timerId: string, color: string, order?: number) => {
     }
 }
 
+const updateLiveTimerStatus = (timerId: string) => {
+    const timerItem = timersList?.querySelector(`[data-timer-id="${timerId}"]`) as HTMLElement | null
+    const timerConfig = multiTimerManager.getTimer(timerId)
+    const running = runningTimers.get(timerId)
+
+    if (!timerItem || !timerConfig) {
+        return
+    }
+
+    const statusEl = timerItem.querySelector('.timer-status') as HTMLElement | null
+    const toggleBtn = timerItem.querySelector('.timer-toggle') as HTMLButtonElement | null
+
+    if (statusEl) {
+        const tickSummary = running?.isRunning && running.stats
+            ? ` · ${running.stats.ticks} ticks · err ${running.stats.lastErrorMs.toFixed(2)}ms`
+            : ''
+        statusEl.textContent = `${timerConfig.bpm} BPM ${running?.isRunning ? '▶ Running' : '⏸ Stopped'}${tickSummary}`
+    }
+
+    if (toggleBtn) {
+        toggleBtn.textContent = running?.isRunning ? 'Stop' : 'Start'
+    }
+}
+
 const clearTickFeedback = (timerId: string) => {
     const timerItem = timersList?.querySelector(`[data-timer-id="${timerId}"]`) as HTMLElement | null
     if (!timerItem) {
@@ -343,6 +369,7 @@ const renderTimersList = () => {
     
     timers.forEach(timer => {
         const running = runningTimers.get(timer.id)?.isRunning || false
+        const stats = runningTimers.get(timer.id)?.stats
         const isSelected = selectedTimerId === timer.id
 
         // Clone template
@@ -373,7 +400,10 @@ const renderTimersList = () => {
         nameEl.textContent = timer.name
 
         const statusEl = fragment.querySelector('.timer-status') as HTMLElement
-        statusEl.textContent = `${timer.bpm} BPM ${running ? '▶' : '⏸'}`
+        const tickSummary = running && stats
+            ? ` · ${stats.ticks} ticks · err ${stats.lastErrorMs.toFixed(2)}ms`
+            : ''
+        statusEl.textContent = `${timer.bpm} BPM ${running ? '▶ Running' : '⏸ Stopped'}${tickSummary}`
 
         const typeBadge = fragment.querySelector('.timer-type-badge') as HTMLElement
         typeBadge.textContent = getTimerTypeDescription(timer.workerType)
@@ -593,13 +623,18 @@ const startTimer = async (timerId: string) => {
         const stats = {
             ticks: 0,
             lags: [] as number[],
-            drifts: [] as number[]
+            drifts: [] as number[],
+            lastErrorMs: 0,
+            lastJitterMs: 0
         }
 
         const callback = ({ timePassed, elapsed, expected, drift, lag }: TimerEvent) => {
+            const errorMs = Math.abs(timePassed - expected) * 1000
             stats.ticks++
             stats.lags.push(lag)
             stats.drifts.push(drift)
+            stats.lastJitterMs = stats.ticks > 1 ? Math.abs(errorMs - stats.lastErrorMs) : 0
+            stats.lastErrorMs = errorMs
 
             if (stats.lags.length > 500) stats.lags.shift()
             if (stats.drifts.length > 500) stats.drifts.shift()
@@ -640,6 +675,8 @@ const startTimer = async (timerId: string) => {
             if (selectedTimerId === timerId) {
                 updateTimerDetailsStats(timerId, stats)
             }
+
+            updateLiveTimerStatus(timerId)
         }
 
         const startTime = Date.now()
@@ -664,7 +701,7 @@ const startTimer = async (timerId: string) => {
         renderTimersList()
         if (selectedTimerId === timerId) showTimerDetails(timerId)
     } catch (error) {
-        // Silently handle errors
+        console.error(`Error starting timer ${timerId}:`, error)
     }
 }
 
@@ -678,7 +715,7 @@ const stopTimer = async (timerId: string) => {
         renderTimersList()
         if (selectedTimerId === timerId) showTimerDetails(timerId)
     } catch (error) {
-        // Silently handle errors
+        console.error(`Error stopping timer ${timerId}:`, error)
     }
 }
 
@@ -688,7 +725,9 @@ const clearTimer = (timerId: string) => {
         running.stats = {
             ticks: 0,
             lags: [],
-            drifts: []
+            drifts: [],
+            lastErrorMs: 0,
+            lastJitterMs: 0
         }
     }
     multiTimerManager.clearTimer(timerId)
@@ -749,10 +788,10 @@ if (createTimerBtn) {
 
     // Store options for later use
     if (!runningTimers.has(timerId)) {
-        runningTimers.set(timerId, {
+            runningTimers.set(timerId, {
             id: timerId,
             timer: null,
-            stats: { ticks: 0, lags: [], drifts: [] },
+            stats: { ticks: 0, lags: [], drifts: [], lastErrorMs: 0, lastJitterMs: 0 },
             isRunning: false
         })
     }

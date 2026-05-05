@@ -1,8 +1,8 @@
 /**
  * Multi-Timer Performance Chart
- * Displays multiple timer streams on a single canvas
+ * Buffers chart updates on the main thread and renders via an OffscreenCanvas worker.
  */
-interface ChartDataPoint {
+export interface ChartDataPoint {
     id: string;
     lag: number;
     drift?: number;
@@ -15,28 +15,20 @@ interface ChartDataPoint {
 }
 export declare class MultiTimerChart {
     private canvas;
-    private ctx;
     private data;
     private maxDataPoints;
-    private colors;
-    private padding;
-    private panelGap;
+    private worker;
+    private flushScheduled;
+    private resizeScheduled;
+    private isWorkerReady;
     constructor(canvasId: string);
-    private resizeCanvas;
     addData(data: ChartDataPoint): void;
     clear(): void;
     clearTimer(id: string): void;
-    private getTextColor;
-    private getGridColor;
-    private draw;
-    private getPanels;
-    private drawPanelAxes;
-    private drawTimerData;
-    private drawLegend;
-    private getMetricSeries;
-    private toErrorMs;
-    private getScaleMax;
-    private summarizeTimer;
+    private initWorker;
+    private scheduleResize;
+    private resizeCanvas;
+    private scheduleFlush;
+    private flush;
 }
-export {};
 //# sourceMappingURL=multi-timer-chart.d.ts.map
