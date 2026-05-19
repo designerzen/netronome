@@ -648,6 +648,89 @@ describe('Timer Configuration', () => {
         expect(timer.bars).toBe(8)
         expect(timer.divisions).toBe(24) // Default
     })
+
+    it('should normalize legacy synch=true to local-grid sync', () => {
+        const timer = new Timer({ synch: true })
+
+        expect(timer.options.sync?.mode).toBe('local-grid')
+        expect(timer.isSynchronized()).toBe(true)
+    })
+
+    it('should normalize legacy synch=false to off sync', () => {
+        const timer = new Timer({ synch: false })
+
+        expect(timer.options.sync?.mode).toBe('off')
+        expect(timer.isSynchronized()).toBe(false)
+    })
+
+    it('should preserve explicit sync mode over legacy synch', () => {
+        const timer = new Timer({
+            synch: true,
+            sync: {
+                mode: 'system-epoch-grid',
+                referenceEpochMs: 1234
+            }
+        })
+
+        expect(timer.options.sync?.mode).toBe('system-epoch-grid')
+        expect(timer.options.sync && 'referenceEpochMs' in timer.options.sync
+            ? timer.options.sync.referenceEpochMs
+            : undefined).toBe(1234)
+    })
+})
+
+describe('Timer Synchronization Modes', () => {
+    it('should toggle synchronized state by updating sync mode', () => {
+        const timer = new Timer({ sync: { mode: 'system-epoch-grid', referenceEpochMs: 0 } })
+
+        expect(timer.isSynchronized()).toBe(true)
+
+        timer.setSynchronized(false)
+        expect(timer.options.sync?.mode).toBe('off')
+        expect(timer.isSynchronized()).toBe(false)
+
+        timer.setSynchronized(true)
+        expect(timer.options.sync?.mode).toBe('local-grid')
+        expect(timer.isSynchronized()).toBe(true)
+    })
+
+    it('should apply system epoch reference to global tick calculations', () => {
+        const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(4000)
+        const timer = new Timer({
+            bpm: 60,
+            divisions: 1,
+            sync: {
+                mode: 'system-epoch-grid',
+                referenceEpochMs: 1000
+            }
+        })
+
+        expect(timer.getGlobalTickNumber()).toBe(3)
+
+        dateNowSpy.mockRestore()
+    })
+
+    it('should include sync metadata in tick callbacks', () => {
+        const callback = vi.fn()
+        const timer = new Timer({
+            sync: {
+                mode: 'system-epoch-grid',
+                referenceEpochMs: 0,
+                join: 'next-bar'
+            },
+            callback
+        })
+
+        timer.onTick(0.1, 0.1, 0, 0, 1, 0)
+
+        expect(callback).toHaveBeenCalledTimes(1)
+        expect(callback.mock.calls[0][0].sync).toMatchObject({
+            mode: 'system-epoch-grid',
+            status: 'locked',
+            join: 'next-bar',
+            referenceEpochMs: 0
+        })
+    })
 })
 
 describe('Timer Edge Cases', () => {

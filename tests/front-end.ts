@@ -3,6 +3,10 @@ import Timer from '../src/timer.ts'
 import AudioTimer from '../src/timer-audio.ts'
 import { MultiTimerManager } from '../src/multi-timer.ts'
 import { MultiTimerChart } from '../src/multi-timer-chart.ts'
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
+import QRCode from 'qrcode'
+import { prepareZXingModule, readBarcodes, type ReaderOptions, ZXING_WASM_VERSION } from 'zxing-wasm'
+import { createWebRTCSyncController, type WebRTCSyncController, type WebRTCSyncRole, type WebRTCSyncSignal, type WebRTCSessionBundle } from '../src/webrtc-sync.ts'
 import {
     TIMER_TYPE_AUDIO_CONTEXT,
     TIMER_TYPE_AUDIO_WORKLET,
@@ -50,6 +54,34 @@ const newTimerMetronomeCheckbox = getElement<HTMLInputElement>('new-timer-metron
 const newTimerCpuStressCheckbox = getElement<HTMLInputElement>('new-timer-cpu-stress')
 const newTimerMidiCheckbox = getElement<HTMLInputElement>('new-timer-midi')
 const createTimerBtn = getElement<HTMLButtonElement>('create-timer')
+const syncRoomIdInput = getElement<HTMLInputElement>('sync-room-id')
+const syncMethodSelect = getElement<HTMLSelectElement>('sync-method')
+const syncRoleSelect = getElement<HTMLSelectElement>('sync-role')
+const syncServerUrlInput = getElement<HTMLInputElement>('sync-server-url')
+const syncServerControls = getElement<HTMLElement>('sync-server-controls')
+const syncTimerSelect = getElement<HTMLSelectElement>('sync-timer-id')
+const syncConnectBtn = getElement<HTMLButtonElement>('sync-connect')
+const syncDisconnectBtn = getElement<HTMLButtonElement>('sync-disconnect')
+const syncStartBtn = getElement<HTMLButtonElement>('sync-start')
+const syncPushTempoBtn = getElement<HTMLButtonElement>('sync-push-tempo')
+const syncQrControls = getElement<HTMLElement>('sync-qr-controls')
+const syncGenerateOfferBtn = getElement<HTMLButtonElement>('sync-generate-offer')
+const syncApplyOfferBtn = getElement<HTMLButtonElement>('sync-apply-offer')
+const syncGenerateAnswerBtn = getElement<HTMLButtonElement>('sync-generate-answer')
+const syncApplyAnswerBtn = getElement<HTMLButtonElement>('sync-apply-answer')
+const syncStartScanBtn = getElement<HTMLButtonElement>('sync-start-scan')
+const syncStopScanBtn = getElement<HTMLButtonElement>('sync-stop-scan')
+const syncCameraPreview = getElement<HTMLVideoElement>('sync-camera-preview')
+const syncBundleInput = getElement<HTMLTextAreaElement>('sync-bundle-input')
+const syncLocalBundle = getElement<HTMLTextAreaElement>('sync-local-bundle')
+const syncShareUrlInput = getElement<HTMLInputElement>('sync-share-url')
+const syncCopyUrlBtn = getElement<HTMLButtonElement>('sync-copy-url')
+const syncQrCanvas = getElement<HTMLCanvasElement>('sync-qr-canvas')
+const syncHealthScan = getElement<HTMLElement>('sync-health-scan')
+const syncHealthPeer = getElement<HTMLElement>('sync-health-peer')
+const syncHealthLock = getElement<HTMLElement>('sync-health-lock')
+const syncStatusText = getElement<HTMLElement>('sync-status-text')
+const syncStatusDetail = getElement<HTMLElement>('sync-status-detail')
 
 // Active Timers Display
 const timersList = getElement('timers-list')
@@ -63,7 +95,7 @@ const themeToggle = getElement<HTMLButtonElement>('theme-toggle')
 
 interface RunningTimer {
     id: string
-    timer: any
+    timer: Timer | AudioTimer | null
     stats: {
         ticks: number
         lags: number[]
@@ -72,6 +104,28 @@ interface RunningTimer {
         lastJitterMs: number
     }
     isRunning: boolean
+}
+
+interface SignalingEnvelope {
+    fromPeerId: string
+    signal: WebRTCSyncSignal
+}
+
+interface SyncUiState {
+    controller: WebRTCSyncController | null
+    roomId: string | null
+    peerId: string | null
+    role: WebRTCSyncRole | null
+    pollIntervalId: number | null
+    connectedTimerId: string | null
+    method: 'server' | 'qr'
+    pendingBundle: WebRTCSessionBundle | null
+    scanStream: MediaStream | null
+    scanAnimationFrameId: number | null
+    scanCanvas: HTMLCanvasElement | null
+    scanContext: CanvasRenderingContext2D | null
+    scanActive: boolean
+    scanPhase: 'idle' | 'scanning' | 'bundle-detected' | 'connected' | 'locked'
 }
 
 const multiTimerManager = new MultiTimerManager()
@@ -95,6 +149,38 @@ const recentTickOrders = new Map<string, TickOrderState>()
 const tickOrderTimeouts = new Map<string, number>()
 const TICK_BATCH_WINDOW_MS = 40
 const TICK_ORDER_DISPLAY_MS = 420
+const qrReaderOptions: ReaderOptions = {
+    formats: ['QRCode'],
+    tryHarder: true,
+    maxNumberOfSymbols: 1
+}
+
+prepareZXingModule({
+    overrides: {
+        locateFile: (path: string, prefix: string) => {
+            if (path.endsWith('.wasm')) {
+                return `https://cdn.jsdelivr.net/npm/zxing-wasm@${ZXING_WASM_VERSION}/dist/full/${path}`
+            }
+            return prefix + path
+        }
+    }
+})
+const syncUiState: SyncUiState = {
+    controller: null,
+    roomId: null,
+    peerId: null,
+    role: null,
+    pollIntervalId: null,
+    connectedTimerId: null,
+    method: 'server',
+    pendingBundle: null,
+    scanStream: null,
+    scanAnimationFrameId: null,
+    scanCanvas: null,
+    scanContext: null,
+    scanActive: false,
+    scanPhase: 'idle'
+}
 
 const renderTimerTypeOptions = (selectedType: TimerType) => {
     return TIMER_TYPE_OPTIONS.map((timerType) => {
@@ -126,6 +212,203 @@ const ensureAudioContext = async () => {
     }
 
     return audioContext
+}
+
+const setSyncStatus = (headline: string, detail: string = '') => {
+    if (syncStatusText) {
+        syncStatusText.textContent = headline
+    }
+    if (syncStatusDetail) {
+        syncStatusDetail.textContent = detail
+    }
+}
+
+const setHealthPill = (
+    element: HTMLElement | null,
+    state: 'idle' | 'active' | 'success',
+    label: string
+) => {
+    if (!element) {
+        return
+    }
+
+    element.dataset.state = state
+    element.textContent = label
+}
+
+const updateSyncHealth = () => {
+    const { scanPhase } = syncUiState
+
+    if (scanPhase === 'scanning') {
+        setHealthPill(syncHealthScan, 'active', 'Scanning')
+    } else if (scanPhase === 'bundle-detected') {
+        setHealthPill(syncHealthScan, 'success', 'QR Captured')
+    } else {
+        setHealthPill(syncHealthScan, 'idle', 'Scan Idle')
+    }
+
+    if (scanPhase === 'connected' || scanPhase === 'locked') {
+        setHealthPill(syncHealthPeer, 'success', 'Peer Linked')
+    } else if (syncUiState.controller) {
+        setHealthPill(syncHealthPeer, 'active', 'Peer Arming')
+    } else {
+        setHealthPill(syncHealthPeer, 'idle', 'Peer Offline')
+    }
+
+    if (scanPhase === 'locked') {
+        setHealthPill(syncHealthLock, 'success', 'Clock Locked')
+    } else if (scanPhase === 'connected') {
+        setHealthPill(syncHealthLock, 'active', 'Clock Settling')
+    } else {
+        setHealthPill(syncHealthLock, 'idle', 'Clock Free')
+    }
+}
+
+const setScanPhase = (phase: SyncUiState['scanPhase'], detail?: string) => {
+    syncUiState.scanPhase = phase
+    updateSyncHealth()
+
+    switch (phase) {
+        case 'idle':
+            setSyncStatus('Disconnected', detail ?? 'Select a timer, choose a role, and connect with either the signaling server or QR bundle exchange.')
+            break
+        case 'scanning':
+            setSyncStatus('Scanning QR code', detail ?? 'Point the camera at the master clock QR/share URL.')
+            break
+        case 'bundle-detected':
+            setSyncStatus('Bundle detected', detail ?? 'Applying the scanned bundle and preparing the peer connection.')
+            break
+        case 'connected':
+            setSyncStatus('Connected to master', detail ?? 'Peer connection is open. Waiting for clock lock.')
+            break
+        case 'locked':
+            setSyncStatus('In time with master', detail ?? 'Clock offset samples are stable and follower timing is locked.')
+            break
+    }
+}
+
+const updateSyncTimerOptions = () => {
+    if (!syncTimerSelect) {
+        return
+    }
+
+    const timers = multiTimerManager.getAllTimers()
+    const previousValue = syncTimerSelect.value
+    syncTimerSelect.innerHTML = timers.map((timer) => (
+        `<option value="${timer.id}">${timer.name} · ${timer.bpm} BPM</option>`
+    )).join('')
+
+    if (timers.length === 0) {
+        syncTimerSelect.innerHTML = '<option value="">No timers available</option>'
+        syncTimerSelect.disabled = true
+        return
+    }
+
+    syncTimerSelect.disabled = false
+    syncTimerSelect.value = timers.some((timer) => timer.id === previousValue)
+        ? previousValue
+        : timers[0].id
+}
+
+const getSelectedSyncTimerId = () => syncTimerSelect?.value || ''
+
+const getSyncMethod = (): 'server' | 'qr' =>
+    (syncMethodSelect?.value === 'qr' ? 'qr' : 'server')
+
+const updateSyncMethodVisibility = () => {
+    syncUiState.method = getSyncMethod()
+
+    if (syncServerControls) {
+        syncServerControls.hidden = syncUiState.method !== 'server'
+    }
+
+    if (syncQrControls) {
+        syncQrControls.hidden = syncUiState.method !== 'qr'
+    }
+
+    if (syncUiState.method !== 'qr') {
+        stopCameraScan()
+    }
+}
+
+const encodeSessionBundle = (bundle: WebRTCSessionBundle): string =>
+    compressToEncodedURIComponent(JSON.stringify(bundle))
+
+const decodeSessionBundle = (value: string): WebRTCSessionBundle => {
+    const decoded = decompressFromEncodedURIComponent(value.trim())
+    if (!decoded) {
+        throw new Error('Bundle payload could not be decompressed')
+    }
+    return JSON.parse(decoded) as WebRTCSessionBundle
+}
+
+const buildBundleShareUrl = (payload: string) => {
+    const url = new URL(window.location.href)
+    url.hash = `sync-bundle=${payload}`
+    return url.toString()
+}
+
+const parseBundlePayload = (value: string): string => {
+    const trimmed = value.trim()
+    if (!trimmed) {
+        throw new Error('QR payload was empty')
+    }
+
+    if (/^https?:\/\//i.test(trimmed)) {
+        const url = new URL(trimmed)
+        const hash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash
+        const params = new URLSearchParams(hash)
+        const payload = params.get('sync-bundle')
+        if (!payload) {
+            throw new Error('Shared URL did not contain a sync-bundle hash')
+        }
+        return payload
+    }
+
+    return trimmed
+}
+
+const clearQrCanvas = () => {
+    if (!syncQrCanvas) {
+        return
+    }
+    const context = syncQrCanvas.getContext('2d')
+    context?.clearRect(0, 0, syncQrCanvas.width, syncQrCanvas.height)
+}
+
+const renderQrPayload = async (payload: string) => {
+    if (!syncLocalBundle) {
+        return
+    }
+
+    syncLocalBundle.value = payload
+    const shareUrl = buildBundleShareUrl(payload)
+    if (syncShareUrlInput) {
+        syncShareUrlInput.value = shareUrl
+    }
+
+    if (!syncQrCanvas) {
+        return
+    }
+
+    await QRCode.toCanvas(syncQrCanvas, shareUrl, {
+        width: 256,
+        margin: 1,
+        errorCorrectionLevel: 'L'
+    })
+}
+
+const ensureScanSurface = () => {
+    if (!syncUiState.scanCanvas) {
+        syncUiState.scanCanvas = document.createElement('canvas')
+        syncUiState.scanCanvas.width = 640
+        syncUiState.scanCanvas.height = 480
+        syncUiState.scanContext = syncUiState.scanCanvas.getContext('2d', { willReadFrequently: true })
+    }
+    return {
+        canvas: syncUiState.scanCanvas,
+        context: syncUiState.scanContext
+    }
 }
 
 // ===== INITIALIZATION =====
@@ -359,6 +642,7 @@ const registerTickOrder = (timerId: string, color: string) => {
 const renderTimersList = () => {
     const timers = multiTimerManager.getAllTimers()
     const template = document.getElementById('timer-item-template') as HTMLTemplateElement
+    updateSyncTimerOptions()
 
     if (timers.length === 0) {
         timersList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">No timers yet. Click "Create Timer" to start.</p>'
@@ -601,6 +885,45 @@ const showTimerDetails = (timerId: string) => {
 
 // ===== TIMER CONTROL =====
 
+const createRuntimeTimer = async (timerId: string): Promise<Timer | AudioTimer> => {
+    const config = multiTimerManager.getTimer(timerId)
+    if (!config) {
+        throw new Error(`Timer config ${timerId} was not found`)
+    }
+
+    const timer = audioTimerTypes.has(config.workerType)
+        ? new AudioTimer(await ensureAudioContext(), config.workerType)
+        : new Timer({ bpm: config.bpm, type: config.workerType })
+
+    timer.BPM = config.bpm
+    timer.swing = config.swing
+
+    return timer
+}
+
+const ensureRuntimeTimer = async (timerId: string): Promise<Timer | AudioTimer> => {
+    const running = runningTimers.get(timerId)
+    if (running?.timer) {
+        return running.timer
+    }
+
+    const timer = await createRuntimeTimer(timerId)
+    const existing = runningTimers.get(timerId)
+    if (existing) {
+        existing.timer = timer
+        return timer
+    }
+
+    runningTimers.set(timerId, {
+        id: timerId,
+        timer,
+        stats: { ticks: 0, lags: [], drifts: [], lastErrorMs: 0, lastJitterMs: 0 },
+        isRunning: false
+    })
+
+    return timer
+}
+
 const startTimer = async (timerId: string) => {
     const config = multiTimerManager.getTimer(timerId)
     if (!config) return
@@ -613,9 +936,7 @@ const startTimer = async (timerId: string) => {
     try {
         initMultiChart()
         const interval = 60000 / config.bpm
-        const timer = audioTimerTypes.has(config.workerType)
-            ? new AudioTimer(await ensureAudioContext(), config.workerType)
-            : new Timer({ bpm: config.bpm, type: config.workerType })
+        const timer = await ensureRuntimeTimer(timerId)
 
         timer.BPM = config.bpm
         timer.swing = config.swing
@@ -750,7 +1071,581 @@ const removeTimer = async (timerId: string) => {
         timerDetailsPanel.hidden = true
     }
     renderTimersList()
+}
+
+// ===== WEBRTC SYNC =====
+
+const createPeerId = () => `peer-${Math.random().toString(36).slice(2, 10)}`
+
+const getSyncServerUrl = () => (syncServerUrlInput?.value || 'http://localhost:8787').replace(/\/$/, '')
+
+const postJson = async <T>(url: string, payload: unknown): Promise<T> => {
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+        throw new Error(`Request failed with ${response.status}`)
     }
+
+    return response.json() as Promise<T>
+}
+
+const joinSyncRoom = async (serverUrl: string, roomId: string, peerId: string, role: WebRTCSyncRole) => {
+    return postJson<{ peers: string[] }>(`${serverUrl}/join`, { roomId, peerId, role })
+}
+
+const leaveSyncRoom = async (serverUrl: string, roomId: string, peerId: string) => {
+    return postJson<{ ok: true }>(`${serverUrl}/leave`, { roomId, peerId })
+}
+
+const sendSyncSignal = async (serverUrl: string, roomId: string, peerId: string, signal: WebRTCSyncSignal) => {
+    return postJson<{ ok: true }>(`${serverUrl}/signal`, { roomId, peerId, signal })
+}
+
+const pollSyncSignals = async (serverUrl: string, roomId: string, peerId: string) => {
+    const response = await fetch(`${serverUrl}/poll?roomId=${encodeURIComponent(roomId)}&peerId=${encodeURIComponent(peerId)}`)
+    if (!response.ok) {
+        throw new Error(`Polling failed with ${response.status}`)
+    }
+
+    return response.json() as Promise<{ signals: SignalingEnvelope[] }>
+}
+
+const buildSyncController = async (timerId: string, role: WebRTCSyncRole) => {
+    const timer = await ensureRuntimeTimer(timerId)
+    const running = runningTimers.get(timerId)
+
+    if (role === 'follower' && running?.isRunning) {
+        await stopTimer(timerId)
+    }
+
+    const controller = createWebRTCSyncController(timer, { role })
+    controller.onStateChange = (state) => {
+        if (state.connected && state.locked) {
+            setScanPhase('locked', `offset ${state.offsetMs.toFixed(2)}ms · rtt ${state.rttMs.toFixed(2)}ms · jitter ${state.jitterMs.toFixed(2)}ms`)
+            return
+        }
+
+        if (state.connected) {
+            setScanPhase('connected', `samples ${state.sampleCount} · offset ${state.offsetMs.toFixed(2)}ms · rtt ${state.rttMs.toFixed(2)}ms · jitter ${state.jitterMs.toFixed(2)}ms`)
+            return
+        }
+
+        setSyncStatus(
+            `${state.connected ? 'Connected' : 'Connecting'} · ${state.role}`,
+            `samples ${state.sampleCount} · offset ${state.offsetMs.toFixed(2)}ms · rtt ${state.rttMs.toFixed(2)}ms · jitter ${state.jitterMs.toFixed(2)}ms`
+        )
+    }
+
+    syncUiState.controller = controller
+    syncUiState.role = role
+    syncUiState.connectedTimerId = timerId
+
+    return controller
+}
+
+const stopCameraScan = () => {
+    if (syncUiState.scanAnimationFrameId !== null) {
+        cancelAnimationFrame(syncUiState.scanAnimationFrameId)
+        syncUiState.scanAnimationFrameId = null
+    }
+
+    if (syncUiState.scanStream) {
+        for (const track of syncUiState.scanStream.getTracks()) {
+            track.stop()
+        }
+        syncUiState.scanStream = null
+    }
+
+    if (syncCameraPreview) {
+        syncCameraPreview.srcObject = null
+    }
+
+    syncUiState.scanActive = false
+
+    if (syncUiState.scanPhase === 'scanning') {
+        setScanPhase('idle')
+    }
+}
+
+const applyScannedBundlePayload = async (payloadText: string) => {
+    const payload = parseBundlePayload(payloadText)
+    const bundle = decodeSessionBundle(payload)
+    syncUiState.pendingBundle = bundle
+
+    if (syncBundleInput) {
+        syncBundleInput.value = payload
+    }
+
+    setScanPhase('bundle-detected')
+
+    if (!syncUiState.controller || !syncUiState.role) {
+        setSyncStatus('Bundle detected', 'Connect in QR mode first, then apply the scanned bundle.')
+        return
+    }
+
+    if (syncUiState.role === 'follower') {
+        await syncUiState.controller.applyOfferBundle(bundle)
+        stopCameraScan()
+        setSyncStatus('Offer applied from scan', 'Connection is negotiating. Generate the answer QR or wait for connection status.')
+        return
+    }
+
+    await syncUiState.controller.applyAnswerBundle(bundle)
+    stopCameraScan()
+    setSyncStatus('Answer applied from scan', 'Peer connection is negotiating with the follower.')
+}
+
+const scanVideoFrame = async (): Promise<void> => {
+    if (!syncUiState.scanActive || !syncCameraPreview || !syncUiState.scanContext || !syncUiState.scanCanvas) {
+        return
+    }
+
+    try {
+        const width = syncCameraPreview.videoWidth
+        const height = syncCameraPreview.videoHeight
+
+        if (width > 0 && height > 0) {
+            if (syncUiState.scanCanvas.width !== width || syncUiState.scanCanvas.height !== height) {
+                syncUiState.scanCanvas.width = width
+                syncUiState.scanCanvas.height = height
+            }
+
+            syncUiState.scanContext.drawImage(syncCameraPreview, 0, 0, width, height)
+            const imageData = syncUiState.scanContext.getImageData(0, 0, width, height)
+            const results = await readBarcodes(imageData, qrReaderOptions)
+            const firstResult = results.find((result) => typeof result.text === 'string' && result.text.length > 0)
+
+            if (firstResult?.text) {
+                await applyScannedBundlePayload(firstResult.text)
+                return
+            }
+        }
+    } catch (error) {
+        setSyncStatus('Scan error', error instanceof Error ? error.message : 'Unknown QR scanning error')
+        stopCameraScan()
+        return
+    }
+
+    syncUiState.scanAnimationFrameId = requestAnimationFrame(() => {
+        void scanVideoFrame()
+    })
+}
+
+const startCameraScan = async () => {
+    if (getSyncMethod() !== 'qr') {
+        setSyncStatus('Wrong mode', 'Switch the pairing method to QR / Bundle first.')
+        return
+    }
+
+    if (!syncUiState.controller || !syncUiState.role) {
+        setSyncStatus('Not ready to scan', 'Connect in QR mode first so the scanned bundle can be applied immediately.')
+        return
+    }
+
+    if (!syncCameraPreview) {
+        setSyncStatus('Camera preview unavailable', 'The camera preview element was not found in the page.')
+        return
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+        setSyncStatus('Camera not available', 'This browser does not support camera capture for QR scanning.')
+        return
+    }
+
+    stopCameraScan()
+    ensureScanSurface()
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'environment'
+            },
+            audio: false
+        })
+
+        syncUiState.scanStream = stream
+        syncCameraPreview.srcObject = stream
+        await syncCameraPreview.play()
+
+        syncUiState.scanActive = true
+        setScanPhase('scanning')
+        syncUiState.scanAnimationFrameId = requestAnimationFrame(() => {
+            void scanVideoFrame()
+        })
+    } catch (error) {
+        setSyncStatus('Camera access failed', error instanceof Error ? error.message : 'Unable to access the device camera.')
+        stopCameraScan()
+    }
+}
+
+const populateBundleFromHash = (): boolean => {
+    const hash = window.location.hash.startsWith('#')
+        ? window.location.hash.slice(1)
+        : window.location.hash
+    const params = new URLSearchParams(hash)
+    const payload = params.get('sync-bundle')
+
+    if (!payload) {
+        return false
+    }
+
+    if (syncMethodSelect) {
+        syncMethodSelect.value = 'qr'
+    }
+    updateSyncMethodVisibility()
+
+    if (syncBundleInput) {
+        syncBundleInput.value = payload
+    }
+
+    try {
+        syncUiState.pendingBundle = decodeSessionBundle(payload)
+        setSyncStatus('Bundle loaded from URL', 'Choose the matching role, connect in QR mode, then apply the loaded bundle.')
+        return true
+    } catch (error) {
+        syncUiState.pendingBundle = null
+        setSyncStatus('Invalid share URL', error instanceof Error ? error.message : 'Bundle could not be parsed')
+        return false
+    }
+}
+
+const disconnectSyncController = async (statusMessage: string = 'Disconnected') => {
+    const { controller, roomId, peerId, pollIntervalId } = syncUiState
+
+    stopCameraScan()
+
+    if (pollIntervalId !== null) {
+        window.clearInterval(pollIntervalId)
+        syncUiState.pollIntervalId = null
+    }
+
+    if (controller) {
+        await controller.destroy()
+    }
+
+    if (syncUiState.method === 'server' && roomId && peerId) {
+        try {
+            await leaveSyncRoom(getSyncServerUrl(), roomId, peerId)
+        } catch (error) {
+            console.warn('Failed to leave sync room', error)
+        }
+    }
+
+    syncUiState.controller = null
+    syncUiState.roomId = null
+    syncUiState.peerId = null
+    syncUiState.role = null
+    syncUiState.connectedTimerId = null
+    syncUiState.pendingBundle = null
+    if (syncBundleInput && !window.location.hash) {
+        syncBundleInput.value = ''
+    }
+    if (syncLocalBundle) {
+        syncLocalBundle.value = ''
+    }
+    if (syncShareUrlInput) {
+        syncShareUrlInput.value = ''
+    }
+    clearQrCanvas()
+    syncUiState.scanPhase = 'idle'
+    updateSyncHealth()
+    setSyncStatus(statusMessage, 'Select a timer, choose a role, and connect with either the signaling server or QR bundle exchange.')
+}
+
+const startSignalPolling = () => {
+    const roomId = syncUiState.roomId
+    const peerId = syncUiState.peerId
+    if (!roomId || !peerId) {
+        return
+    }
+
+    const poll = async () => {
+        if (!syncUiState.controller || !syncUiState.roomId || !syncUiState.peerId) {
+            return
+        }
+
+        try {
+            const payload = await pollSyncSignals(getSyncServerUrl(), syncUiState.roomId, syncUiState.peerId)
+            for (const entry of payload.signals) {
+                await syncUiState.controller.handleSignal(entry.signal)
+            }
+        } catch (error) {
+            setSyncStatus('Signal polling failed', error instanceof Error ? error.message : 'Unknown polling error')
+        }
+    }
+
+    poll().catch(() => {})
+    syncUiState.pollIntervalId = window.setInterval(() => {
+        void poll()
+    }, 800)
+}
+
+const connectSyncController = async () => {
+    const timerId = getSelectedSyncTimerId()
+    if (!timerId) {
+        setSyncStatus('No timer selected', 'Create a timer first, then choose it in the sync panel.')
+        return
+    }
+
+    const role = (syncRoleSelect?.value || 'leader') as WebRTCSyncRole
+    const method = getSyncMethod()
+    const roomId = syncRoomIdInput?.value.trim() || 'studio-a'
+    const serverUrl = getSyncServerUrl()
+    const peerId = createPeerId()
+
+    await disconnectSyncController('Reconnecting')
+    syncUiState.method = method
+
+    const controller = await buildSyncController(timerId, role)
+
+    if (method === 'server') {
+        controller.onSignal = (signal) => {
+            void sendSyncSignal(serverUrl, roomId, peerId, signal)
+        }
+
+        await joinSyncRoom(serverUrl, roomId, peerId, role)
+
+        syncUiState.roomId = roomId
+        syncUiState.peerId = peerId
+        startSignalPolling()
+
+        if (role === 'leader') {
+            await controller.start()
+        }
+
+        setSyncStatus('Connecting', `Room ${roomId} · ${role} · waiting for peer/data channel`)
+        return
+    }
+
+    if (syncBundleInput?.value.trim()) {
+        try {
+            syncUiState.pendingBundle = decodeSessionBundle(syncBundleInput.value)
+        } catch (error) {
+            syncUiState.pendingBundle = null
+            setSyncStatus('Invalid bundle', error instanceof Error ? error.message : 'Bundle could not be parsed')
+        }
+    }
+
+    setSyncStatus(
+        'QR pairing ready',
+        role === 'leader'
+            ? 'Generate an offer bundle, show its QR, then apply the follower answer bundle.'
+            : 'Apply the leader offer bundle first, then generate your answer QR.'
+    )
+    updateSyncHealth()
+}
+
+const startSynchronizedTimer = async () => {
+    if (!syncUiState.controller) {
+        setSyncStatus('Not connected', 'Connect to the signaling server before starting synchronized playback.')
+        return
+    }
+
+    if (syncUiState.role !== 'leader') {
+        setSyncStatus('Follower ready', 'The follower starts automatically when the leader triggers sync.')
+        return
+    }
+
+    await syncUiState.controller.startSynchronized()
+    const timerId = syncUiState.connectedTimerId
+    if (timerId) {
+        const running = runningTimers.get(timerId)
+        if (running) {
+            running.isRunning = true
+        }
+        renderTimersList()
+    }
+}
+
+const pushTempoUpdate = () => {
+    if (!syncUiState.controller) {
+        return
+    }
+
+    syncUiState.controller.broadcastTempoUpdate()
+    setSyncStatus('Tempo pushed', 'Leader transport settings were broadcast to followers.')
+}
+
+const generateOfferQr = async () => {
+    if (getSyncMethod() !== 'qr') {
+        setSyncStatus('Wrong mode', 'Switch the pairing method to QR / Bundle first.')
+        return
+    }
+
+    if (syncUiState.role !== 'leader' || !syncUiState.controller) {
+        setSyncStatus('Leader required', 'Connect as leader in QR mode before generating an offer bundle.')
+        return
+    }
+
+    const payload = encodeSessionBundle(await syncUiState.controller.createOfferBundle())
+    await renderQrPayload(payload)
+    setSyncStatus('Offer ready', 'Show this QR to the follower or copy the local bundle text.')
+}
+
+const applyOfferBundle = async () => {
+    if (getSyncMethod() !== 'qr') {
+        setSyncStatus('Wrong mode', 'Switch the pairing method to QR / Bundle first.')
+        return
+    }
+
+    if (syncUiState.role !== 'follower' || !syncUiState.controller || !syncBundleInput?.value.trim()) {
+        setSyncStatus('Follower bundle required', 'Connect as follower and paste the leader offer bundle first.')
+        return
+    }
+
+    const bundle = syncUiState.pendingBundle ?? decodeSessionBundle(syncBundleInput.value)
+    await syncUiState.controller.applyOfferBundle(bundle)
+    const answerPayload = encodeSessionBundle(await syncUiState.controller.createAnswerBundle())
+    await renderQrPayload(answerPayload)
+    setSyncStatus('Offer applied', 'Answer QR is ready. Show it to the leader so the peer connection can finish.')
+}
+
+const generateAnswerQr = async () => {
+    if (getSyncMethod() !== 'qr') {
+        setSyncStatus('Wrong mode', 'Switch the pairing method to QR / Bundle first.')
+        return
+    }
+
+    if (syncUiState.role !== 'follower' || !syncUiState.controller) {
+        setSyncStatus('Follower required', 'Connect as follower in QR mode before generating an answer bundle.')
+        return
+    }
+
+    const payload = encodeSessionBundle(await syncUiState.controller.createAnswerBundle())
+    await renderQrPayload(payload)
+    setSyncStatus('Answer ready', 'Show this QR to the leader or copy the local bundle text.')
+}
+
+const applyAnswerBundle = async () => {
+    if (getSyncMethod() !== 'qr') {
+        setSyncStatus('Wrong mode', 'Switch the pairing method to QR / Bundle first.')
+        return
+    }
+
+    if (syncUiState.role !== 'leader' || !syncUiState.controller || !syncBundleInput?.value.trim()) {
+        setSyncStatus('Leader bundle required', 'Connect as leader and paste the follower answer bundle.')
+        return
+    }
+
+    const bundle = syncUiState.pendingBundle ?? decodeSessionBundle(syncBundleInput.value)
+    await syncUiState.controller.applyAnswerBundle(bundle)
+    setSyncStatus('Answer applied', 'Peer connection should open shortly if both devices exchanged bundles successfully.')
+}
+
+if (syncConnectBtn) {
+    syncConnectBtn.addEventListener('click', () => {
+        void connectSyncController()
+    })
+}
+
+if (syncDisconnectBtn) {
+    syncDisconnectBtn.addEventListener('click', () => {
+        void disconnectSyncController()
+    })
+}
+
+if (syncStartBtn) {
+    syncStartBtn.addEventListener('click', () => {
+        void startSynchronizedTimer()
+    })
+}
+
+if (syncPushTempoBtn) {
+    syncPushTempoBtn.addEventListener('click', () => {
+        pushTempoUpdate()
+    })
+}
+
+if (syncCopyUrlBtn) {
+    syncCopyUrlBtn.addEventListener('click', async () => {
+        const shareUrl = syncShareUrlInput?.value || ''
+        if (!shareUrl) {
+            setSyncStatus('No share URL', 'Generate an offer or answer bundle first.')
+            return
+        }
+
+        try {
+            await navigator.clipboard.writeText(shareUrl)
+            setSyncStatus('Share URL copied', 'Open it on the other device or turn it into a QR scan target.')
+        } catch (error) {
+            setSyncStatus('Copy failed', 'Clipboard access was denied. Copy the URL from the field manually.')
+        }
+    })
+}
+
+if (syncGenerateOfferBtn) {
+    syncGenerateOfferBtn.addEventListener('click', () => {
+        void generateOfferQr()
+    })
+}
+
+if (syncApplyOfferBtn) {
+    syncApplyOfferBtn.addEventListener('click', () => {
+        void applyOfferBundle()
+    })
+}
+
+if (syncGenerateAnswerBtn) {
+    syncGenerateAnswerBtn.addEventListener('click', () => {
+        void generateAnswerQr()
+    })
+}
+
+if (syncApplyAnswerBtn) {
+    syncApplyAnswerBtn.addEventListener('click', () => {
+        void applyAnswerBundle()
+    })
+}
+
+if (syncStartScanBtn) {
+    syncStartScanBtn.addEventListener('click', () => {
+        void startCameraScan()
+    })
+}
+
+if (syncStopScanBtn) {
+    syncStopScanBtn.addEventListener('click', () => {
+        stopCameraScan()
+        setSyncStatus('Camera scan stopped', 'You can restart scanning or paste a bundle manually.')
+    })
+}
+
+if (syncMethodSelect) {
+    syncMethodSelect.addEventListener('change', () => {
+        updateSyncMethodVisibility()
+    })
+}
+
+if (syncRoleSelect) {
+    syncRoleSelect.addEventListener('change', () => {
+        if (syncUiState.scanActive) {
+            stopCameraScan()
+            setSyncStatus('Role changed', 'Camera scan stopped. Reconnect and scan again with the new role.')
+        }
+    })
+}
+
+if (syncBundleInput) {
+    syncBundleInput.addEventListener('input', () => {
+        const payload = syncBundleInput.value.trim()
+        if (!payload) {
+            syncUiState.pendingBundle = null
+            return
+        }
+
+        try {
+            syncUiState.pendingBundle = decodeSessionBundle(payload)
+        } catch (error) {
+            syncUiState.pendingBundle = null
+        }
+    })
+}
 
     if (newTimerBpmInput) {
     newTimerBpmInput.addEventListener('change', (e) => {
@@ -933,6 +1828,12 @@ const initApp = () => {
     renderTimersList()
     initTheme()
     syncSwingControls(0)
+    updateSyncTimerOptions()
+    updateSyncMethodVisibility()
+    updateSyncHealth()
+    if (!populateBundleFromHash()) {
+        setSyncStatus('Disconnected', 'Select a timer, choose a role, and connect with either the signaling server or QR bundle exchange.')
+    }
 }
 
 // Ensure DOM is ready before rendering
