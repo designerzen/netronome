@@ -24,6 +24,85 @@ export interface ITimerControl {
  */
 export type TimingHandler = Worker | AudioWorkletNode | null
 
+export type SyncMode =
+    | 'off'
+    | 'local-grid'
+    | 'system-epoch-grid'
+    | 'network-leader'
+    | 'network-follower'
+
+export type SyncJoinMode =
+    | 'immediate'
+    | 'next-tick'
+    | 'next-beat'
+    | 'next-bar'
+
+export type SyncStatus =
+    | 'free'
+    | 'probing'
+    | 'locking'
+    | 'armed'
+    | 'locked'
+    | 'degraded'
+
+export interface SyncOptionsBase {
+    join?: SyncJoinMode
+    beatsPerBar?: number
+}
+
+export interface SyncOffOptions extends SyncOptionsBase {
+    mode: 'off'
+}
+
+export interface LocalGridSyncOptions extends SyncOptionsBase {
+    mode: 'local-grid'
+}
+
+export interface SystemEpochGridSyncOptions extends SyncOptionsBase {
+    mode: 'system-epoch-grid'
+    referenceEpochMs: number
+}
+
+export interface NetworkLeaderSyncOptions extends SyncOptionsBase {
+    mode: 'network-leader'
+    sessionId: string
+    networkLookaheadMs?: number
+    minSamples?: number
+    smallErrorMs?: number
+    largeErrorMs?: number
+    maxTempoNudgePct?: number
+}
+
+export interface NetworkFollowerSyncOptions extends SyncOptionsBase {
+    mode: 'network-follower'
+    sessionId: string
+    leaderId: string
+    networkLookaheadMs?: number
+    minSamples?: number
+    smallErrorMs?: number
+    largeErrorMs?: number
+    maxTempoNudgePct?: number
+}
+
+export type TimerSyncOptions =
+    | SyncOffOptions
+    | LocalGridSyncOptions
+    | SystemEpochGridSyncOptions
+    | NetworkLeaderSyncOptions
+    | NetworkFollowerSyncOptions
+
+export interface TimerSyncMetadata {
+    mode: SyncMode
+    status: SyncStatus
+    join?: SyncJoinMode
+    referenceEpochMs?: number
+    phaseErrorMs?: number
+    clockOffsetMs?: number
+    clockJitterMs?: number
+    transportRevision?: number
+    leaderTimeMs?: number
+}
+
 /**
  * Callback event fired on each timer tick
  */
@@ -40,6 +119,7 @@ export interface TimerCallbackEvent {
     level: number
     intervals: number
     lag: number
+    sync?: TimerSyncMetadata
 }
 
 /**
@@ -55,6 +135,7 @@ export interface TimerOptions {
     processor?: string
     callback?: ((event: TimerCallbackEvent) => void) | null
     audioContext?: AudioContext
+    sync?: TimerSyncOptions
     synch?: boolean
 }
 

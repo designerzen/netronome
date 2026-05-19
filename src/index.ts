@@ -47,3 +47,9 @@ export { default as AudioTimer } from './timer-audio'
 
 // Tap tempo detection
 export { tapTempoQuick, tapTempo } from './tap-tempo'
+
+// Sync helpers
+export { default as SyncSession } from './sync-session'
+export * from './sync-session'
+export { default as WebRTCSyncController, createWebRTCSyncController } from './webrtc-sync'
+export * from './webrtc-sync'

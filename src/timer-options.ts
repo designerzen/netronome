@@ -1,8 +1,14 @@
-import type { TimerOptions } from "./timer-interfaces"
+import type { TimerOptions, TimerSyncOptions } from "./timer-interfaces"
 import { TIMER_TYPE_AUDIO_WORKLET } from "./timer-types"
 
 // Re-export for backward compatibility
 export type { TimerOptions }
+
+export const DEFAULT_SYNC_OPTIONS: TimerSyncOptions = {
+    mode: 'local-grid',
+    join: 'next-bar',
+    beatsPerBar: 4
+}
 
 export const DEFAULT_TIMER_OPTIONS: TimerOptions = {
     
@@ -23,5 +29,6 @@ export const DEFAULT_TIMER_OPTIONS: TimerOptions = {
 
     callback: null,
 
+    sync: DEFAULT_SYNC_OPTIONS,
     synch: true
 }

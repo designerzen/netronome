@@ -10,10 +10,10 @@ import {
 
 import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
-import type { WorkerWrapper } from './timer-interfaces'
+import type { SyncMode, TimerSyncOptions, WorkerWrapper } from './timer-interfaces'
 
 import Epoch from './epoch'
-import { TimerOptions, DEFAULT_TIMER_OPTIONS } from './timer-options'
+import { TimerOptions, DEFAULT_SYNC_OPTIONS, DEFAULT_TIMER_OPTIONS } from './timer-options'
 
 import { AudioContextWorkerWrapper, RollingTimeWorkerWrapper, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper } from './timer-worker-types'
 import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, TIMER_TYPES, isValidTimerType, isWorkletTimerType, type TimerType } from './timer-types'
@@ -22,6 +22,25 @@ import type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-i
 export type { ITimerControl, TimingHandler, TimerCallbackEvent }
 
 export const MAX_BARS_ALLOWED = 32
+
+const NETWORK_SYNC_MODES: readonly SyncMode[] = ['network-leader', 'network-follower'] as const
+
+const hasOwn = <T extends object>(value: T, key: keyof any): boolean =>
+    Object.prototype.hasOwnProperty.call(value, key)
+
+const normalizeSyncOptions = (options: TimerOptions, fallback: TimerSyncOptions = DEFAULT_SYNC_OPTIONS): TimerSyncOptions => {
+    if (hasOwn(options, 'sync') && options.sync) {
+        return { ...DEFAULT_SYNC_OPTIONS, ...options.sync } as TimerSyncOptions
+    }
+
+    if (hasOwn(options, 'synch')) {
+        return options.synch === false
+        ? { mode: 'off', join: DEFAULT_SYNC_OPTIONS.join, beatsPerBar: DEFAULT_SYNC_OPTIONS.beatsPerBar }
+        : { ...DEFAULT_SYNC_OPTIONS }
+    }
+
+    return { ...fallback }
+}
 
 // Re-export interfaces for external use
 
@@ -130,6 +149,34 @@ export default class Timer {
 
     get options(){
         return this.#options
+    }
+
+    get syncOptions(): TimerSyncOptions {
+        return normalizeSyncOptions(this.#options)
+    }
+
+    get syncMode(): SyncMode {
+        return this.syncOptions.mode
+    }
+
+    usesSynchronization(): boolean {
+        return this.syncMode !== 'off'
+    }
+
+    usesNetworkSynchronization(): boolean {
+        return NETWORK_SYNC_MODES.includes(this.syncMode)
+    }
+
+    get syncReferenceEpochMs(): number | undefined {
+        const syncOptions = this.syncOptions
+        return syncOptions.mode === 'system-epoch-grid'
+            ? syncOptions.referenceEpochMs
+            : undefined
+    }
+
+    applySyncConfiguration(): void {
+        const referenceEpoch = this.syncReferenceEpochMs ?? 0
+        this.#epoch.setReferenceEpoch(referenceEpoch)
     }
 
     /**
@@ -431,9 +478,11 @@ export default class Timer {
 
     constructor(options: TimerOptions = DEFAULT_TIMER_OPTIONS, isWorklet?: boolean) {
         this.loaded = Promise.resolve()
-        
-        options = { ...DEFAULT_TIMER_OPTIONS, ...options }        
+
+        const normalizedSync = normalizeSyncOptions(options)
+        options = { ...DEFAULT_TIMER_OPTIONS, ...options, sync: normalizedSync, synch: normalizedSync.mode !== 'off' }
         this.#options = options
+        this.applySyncConfiguration()
 
         const optionKeys = Object.keys(options)
         // const { contexts, type=AUDIOTIMER_WORKLET_URI, divisions=DIVISIONS, processor=AUDIOTIMER_PROCESSOR_URI} = options
@@ -983,7 +1032,14 @@ export default class Timer {
     ): Promise<{ time: number; interval: number; worker: TimingHandler }> {
 
         if (options) {
-            this.#options = { ...options, ...this.#options }
+            const nextOptions = { ...this.#options, ...options } as TimerOptions
+            const normalizedSync = normalizeSyncOptions(options as TimerOptions, this.syncOptions)
+            this.#options = {
+                ...nextOptions,
+                sync: normalizedSync,
+                synch: normalizedSync.mode !== 'off'
+            }
+            this.applySyncConfiguration()
         }
 
         await this.loaded
@@ -1001,8 +1057,10 @@ export default class Timer {
         }
 
         // Calculate synchronization offset if enabled
-        if (this.#options.synch) {
+        if (this.usesSynchronization()) {
             this.#synchronizationOffset = this.#epoch.synchronizeMetronome(this.period)
+        } else {
+            this.#synchronizationOffset = 0
         }
 
         // if we are using an external clock
@@ -1109,6 +1167,7 @@ export default class Timer {
      * @returns the tick number
      */
     getGlobalTickNumber(): number {
+        this.applySyncConfiguration()
         return this.#epoch.getTickNumber(this.period)
     }
 
@@ -1117,7 +1176,19 @@ export default class Timer {
      * @param enabled whether synchronization should be enabled
      */
     setSynchronized(enabled: boolean): void {
+        const sync: TimerSyncOptions = enabled
+            ? (this.syncMode === 'off'
+                ? { ...DEFAULT_SYNC_OPTIONS }
+                : this.syncOptions)
+            : {
+                mode: 'off',
+                join: this.syncOptions.join,
+                beatsPerBar: this.syncOptions.beatsPerBar
+            }
+
+        this.#options.sync = sync
         this.#options.synch = enabled
+        this.applySyncConfiguration()
     }
 
     /**
@@ -1125,7 +1196,7 @@ export default class Timer {
      * @returns whether synchronization is enabled
      */
     isSynchronized(): boolean {
-        return this.#options.synch ?? true
+        return this.usesSynchronization()
     }
 
     /**
@@ -1230,7 +1301,13 @@ export default class Timer {
             drift,
             level,
             intervals,
-            lag
+            lag,
+            sync: {
+                mode: this.syncMode,
+                status: this.usesNetworkSynchronization() ? 'probing' : (this.usesSynchronization() ? 'locked' : 'free'),
+                join: this.syncOptions.join,
+                referenceEpochMs: this.syncReferenceEpochMs
+            }
         })
     }
 }
