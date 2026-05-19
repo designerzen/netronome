@@ -114,6 +114,110 @@
       </form>
     </section>
 
+    <section class="panel">
+      <h2 class="panel-title">WebRTC Sync</h2>
+      <form class="timer-creation-form">
+        <fieldset>
+          <legend class="sr-only">WebRTC Sync Controls</legend>
+          <div class="timer-creation-row sync-grid">
+            <div class="form-group">
+              <label for="sync-room-id">Room ID</label>
+              <input id="sync-room-id" type="text" value="studio-a" />
+            </div>
+            <div class="form-group">
+              <label for="sync-method">Pairing Method</label>
+              <select id="sync-method">
+                <option value="server">Signaling Server</option>
+                <option value="qr" selected>QR / Bundle</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="timer-creation-row sync-grid">
+            <div class="form-group">
+              <label for="sync-role">Role</label>
+              <select id="sync-role">
+                <option value="leader">Leader</option>
+                <option value="follower">Follower</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sync-timer-id">Timer To Sync</label>
+              <select id="sync-timer-id"></select>
+            </div>
+          </div>
+
+          <div class="timer-creation-row sync-grid" id="sync-server-controls">
+            <div class="form-group">
+              <label for="sync-server-url">Signaling Server URL</label>
+              <input id="sync-server-url" type="url" value="http://localhost:8787" />
+            </div>
+          </div>
+
+          <div class="button-group sync-button-group">
+            <button id="sync-connect" type="button">Connect</button>
+            <button id="sync-disconnect" type="button">Disconnect</button>
+            <button id="sync-start" type="button">Start Synced</button>
+            <button id="sync-push-tempo" type="button">Push Tempo</button>
+          </div>
+
+          <div id="sync-qr-controls" hidden>
+            <div class="button-group sync-button-group">
+              <button id="sync-generate-offer" type="button">Generate Offer QR</button>
+              <button id="sync-apply-offer" type="button">Apply Offer Bundle</button>
+              <button id="sync-generate-answer" type="button">Generate Answer QR</button>
+              <button id="sync-apply-answer" type="button">Apply Answer Bundle</button>
+            </div>
+
+            <div class="button-group sync-button-group">
+              <button id="sync-start-scan" type="button">Start Camera Scan</button>
+              <button id="sync-stop-scan" type="button">Stop Camera Scan</button>
+            </div>
+
+            <div class="sync-camera-panel">
+              <video id="sync-camera-preview" autoplay muted playsinline></video>
+            </div>
+
+            <div class="timer-creation-row sync-grid">
+              <div class="form-group">
+                <label for="sync-bundle-input">Paste Remote Bundle</label>
+                <textarea id="sync-bundle-input" rows="8" spellcheck="false"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="sync-local-bundle">Local Bundle / QR Payload</label>
+                <textarea id="sync-local-bundle" rows="8" readonly spellcheck="false"></textarea>
+              </div>
+            </div>
+
+            <div class="timer-creation-row">
+              <div class="form-group">
+                <label for="sync-share-url">Share URL</label>
+                <input id="sync-share-url" type="text" readonly spellcheck="false" />
+              </div>
+            </div>
+
+            <div class="button-group sync-button-group">
+              <button id="sync-copy-url" type="button">Copy Share URL</button>
+            </div>
+
+            <div class="sync-qr-display">
+              <canvas id="sync-qr-canvas" width="256" height="256"></canvas>
+            </div>
+          </div>
+
+          <div class="sync-status-panel">
+            <div class="sync-health-strip" aria-label="Sync health">
+              <span id="sync-health-scan" class="sync-health-pill" data-state="idle">Scan Idle</span>
+              <span id="sync-health-peer" class="sync-health-pill" data-state="idle">Peer Offline</span>
+              <span id="sync-health-lock" class="sync-health-pill" data-state="idle">Clock Free</span>
+            </div>
+            <p id="sync-status-text">Disconnected</p>
+            <p id="sync-status-detail">Use QR / Bundle on GitHub Pages, or switch to a signaling server if you have one.</p>
+          </div>
+        </fieldset>
+      </form>
+    </section>
+
     <!-- Active Timers List -->
     <section class="panel">
       <h2 class="panel-title">Active Timers</h2>
