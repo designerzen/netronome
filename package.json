@@ -70,7 +70,7 @@
     "vitest": "^4.1.6"
   },
   "scripts": {
-    "preinstall": "node -e \"const ua=process.env.npm_config_user_agent||''; if(!ua.includes('pnpm/')){console.error('\\nThis repository uses pnpm exclusively.\\nRun: pnpm install\\n'); process.exit(1)}\"",
+    "preinstall": "node -e \"const ua=process.env.npm_config_user_agent||'';const execPath=(process.env.npm_execpath||'').toLowerCase();if(!ua.includes('pnpm/')&&!execPath.includes('pnpm')){console.error('\\nThis repository uses pnpm exclusively.\\nRun: pnpm install\\n');process.exit(1)}\"",
     "cert": "mkcert -install && mkcert -cert-file ./certs/localhost.pem -key-file ./certs/localhost-key.pem localhost 127.0.0.1 ::1",
     "build": "vite build && pnpm build:lib",
     "build:lib": "vite build -c vite.lib.config.ts && vite build -c vite.workers.config.ts && tsc -p tsconfig.build.json",
