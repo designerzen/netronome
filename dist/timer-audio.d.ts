@@ -1,12 +1,23 @@
 import Timer from "./timer";
+import AudioClock from './audio-clock';
 import { type TimerType } from './timer-types';
 export default class AudioTimer extends Timer {
-    audioContext?: AudioContext;
+    audioContext: AudioContext;
+    readonly clock: AudioClock;
     /**
-     * Accurate time in milliseconds
-     * @returns {Number} The current time as of now
+     * Audio transport time in seconds.
      */
     get now(): number;
+    get audioTimeSeconds(): number;
+    get performanceTimeMs(): number;
+    /**
+     * Convert a DOMHighResTimeStamp (milliseconds) to AudioContext seconds.
+     */
+    performanceToAudioTimeSeconds(performanceTimeMs: number): number;
+    /**
+     * Convert AudioContext seconds to a DOMHighResTimeStamp (milliseconds).
+     */
+    audioToPerformanceTimeMs(audioTimeSeconds: number): number;
     /**
      * Time Scale factor
      */

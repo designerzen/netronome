@@ -5,6 +5,10 @@ type TimingMessage = {
     interval?: number;
     time?: number;
     intervals?: number;
+    contextTimeSeconds?: number;
+    scheduledContextTimeSeconds?: number;
+    audioFrame?: number;
+    sampleRate?: number;
 };
 /**
  * Wrap the above in a single call

@@ -1,4 +1,4 @@
-import type { WorkerWrapper } from './timer-interfaces';
+import type { AudioTickTiming, SyncMode, TimerSyncOptions, WorkerWrapper } from './timer-interfaces';
 import { TimerOptions } from './timer-options';
 import { type TimerType } from './timer-types';
 import type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces';
@@ -38,6 +38,12 @@ export default class Timer {
     loaded: Promise<void>;
     getNow: () => number;
     get options(): TimerOptions;
+    get syncOptions(): TimerSyncOptions;
+    get syncMode(): SyncMode;
+    usesSynchronization(): boolean;
+    usesNetworkSynchronization(): boolean;
+    get syncReferenceEpochMs(): number | undefined;
+    applySyncConfiguration(): void;
     /**
      * Can we use this timing method on this device?
      * @returns boolean is the worker available and compatable
@@ -220,7 +226,7 @@ export default class Timer {
     getTransportElapsedNow(): number;
     resetTransportTiming(anchorClockTime?: number): void;
     captureTempoChangeAnchor(anchorClockTime?: number): void;
-    createTick(intervals: number, timePased: number): void;
+    createTick(intervals: number, timePased: number, audioTiming?: AudioTickTiming): void;
     /**
      * Set the worklet as the main timing mechanism
      * @param type URL or identifier
@@ -368,7 +374,7 @@ export default class Timer {
      * @param intervals number of intervals
      * @param lag timing lag
      */
-    onTick(timePassed: number, expected: number, drift?: number, level?: number, intervals?: number, lag?: number, advanceDivisions?: boolean): void;
+    onTick(timePassed: number, expected: number, drift?: number, level?: number, intervals?: number, lag?: number, advanceDivisions?: boolean, audioTiming?: AudioTickTiming): void;
 }
 export { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, TIMER_TYPES, isValidTimerType, getTimerTypeDescription, type TimerType, } from './timer-types';
 export { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE, convertBPMToPeriod, convertPeriodToBPM, convertMIDIClockIntervalToBPM, secondsToTicks, formatTimeStampFromSeconds, } from './time-utils';

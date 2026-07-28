@@ -1,2 +1,2 @@
-const s="init",a="start",t="stop",i="update",p="adjust-drift",d="starting",n="stopping",o="tick";export{p as C,d as E,i as a,t as b,a as c,s as d,o as e,n as f};
+var a="init",s="start",t="stop",i="update",r="adjust-drift",p="starting",n="stopping",o="tick";export{i as a,o as c,t as i,a as n,p as o,s as r,n as s,r as t};
 //# sourceMappingURL=timer-event-types.js.map

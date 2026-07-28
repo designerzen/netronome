@@ -25,5 +25,11 @@ export * from './timer-worker-types';
 export * from './time-utils';
 export { createTimer, startTimer, stopTimer, setTimeBetween, resetTimer, getTimer } from './timer-global';
 export { default as AudioTimer } from './timer-audio';
+export { default as AudioClock } from './audio-clock';
+export type { AudioClockTimestamp, MonotonicNow } from './audio-clock';
 export { tapTempoQuick, tapTempo } from './tap-tempo';
+export { default as SyncSession } from './sync-session';
+export * from './sync-session';
+export { default as WebRTCSyncController, createWebRTCSyncController } from './webrtc-sync';
+export * from './webrtc-sync';
 //# sourceMappingURL=index.d.ts.map
