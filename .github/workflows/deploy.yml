@@ -39,6 +39,13 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: Verify worker assets
+        run: |
+          test -f dist-demo/workers/timing.audiocontext.worker.js
+          test -f dist-demo/workers/timing.rolling.worker.js
+          test -f dist-demo/workers/timing.setinterval.worker.js
+          test -f dist-demo/workers/timing.settimeout.worker.js
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

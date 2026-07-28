@@ -37,7 +37,11 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: './index.html',
-        'multi-timer': './multi-timer.html'
+        'multi-timer': './multi-timer.html',
+        'workers/timing.audiocontext.worker': './src/workers/timing.audiocontext.worker.ts',
+        'workers/timing.rolling.worker': './src/workers/timing.rolling.worker.ts',
+        'workers/timing.setinterval.worker': './src/workers/timing.setinterval.worker.ts',
+        'workers/timing.settimeout.worker': './src/workers/timing.settimeout.worker.ts'
       },
       output: {
         assetFileNames: '[name].[ext]',
