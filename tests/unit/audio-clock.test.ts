@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import AudioClock from '../../src/audio-clock'
+import AudioTimer from '../../src/timer-audio'
 
 const createContext = ({
 	currentTime = 10,
@@ -49,5 +50,24 @@ describe('AudioClock', () => {
 			performanceTime: 2_000,
 		})
 		expect(clock.performanceToAudioTimeSeconds(2_250)).toBeCloseTo(1.75, 9)
+	})
+})
+
+describe('AudioTimer initialization', () => {
+	it('installs the AudioContext before applying the default BPM', () => {
+		const context = createContext({ currentTime: 12 })
+		const setTimingWorklet = vi
+			.spyOn(AudioTimer.prototype, 'setTimingWorklet')
+			.mockResolvedValue(null)
+
+		try {
+			const timer = new AudioTimer(context)
+
+			expect(timer.audioContext).toBe(context)
+			expect(timer.audioTimeSeconds).toBe(12)
+			expect(timer.now).toBe(12)
+		} finally {
+			setTimingWorklet.mockRestore()
+		}
 	})
 })

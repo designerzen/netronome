@@ -485,9 +485,15 @@ export default class Timer {
         this.applySyncConfiguration()
 
         const optionKeys = Object.keys(options)
+        // Subclass setters such as AudioTimer.BPM can read the active clock.
+        // Install supplied contexts before applying any timing-dependent
+        // options, regardless of the property order introduced by defaults.
+        const contextOptionKeys = optionKeys.filter(key => key === 'contexts' || key === 'audioContext')
+        const remainingOptionKeys = optionKeys.filter(key => key !== 'contexts' && key !== 'audioContext')
+        const orderedOptionKeys = [...contextOptionKeys, ...remainingOptionKeys]
         // const { contexts, type=AUDIOTIMER_WORKLET_URI, divisions=DIVISIONS, processor=AUDIOTIMER_PROCESSOR_URI} = options
 
-        for (let key of optionKeys) {
+        for (let key of orderedOptionKeys) {
             switch (key) {
                 case "audioContext":
                     this.audioContext = options.audioContext as AudioContext
