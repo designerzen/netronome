@@ -1,6 +1,6 @@
 {
   "name": "netronome",
-  "version": "2.8.1",
+  "version": "2.8.3",
   "description": "Rock solid JavaScript timing library with sub-millisecond accuracy",
   "keywords": [
     "timing",
@@ -29,8 +29,8 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist/index.js",
-    "dist/index.js.map",
+    "dist/*.js",
+    "dist/*.js.map",
     "dist/index.d.ts",
     "dist/index.d.ts.map",
     "dist/timing.audioworklet.js",
