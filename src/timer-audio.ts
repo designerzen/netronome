@@ -1,5 +1,6 @@
 import Timer from "./timer"
 
+import AudioClock from './audio-clock'
 import { TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, isWorkletTimerType, type TimerType } from './timer-types'
 import type { AudioTimerOptions } from './timer-interfaces'
 
@@ -12,14 +13,36 @@ const DEFAULT_AUDIO_TIMER_OPTIONS: AudioTimerOptions = {
 
 export default class AudioTimer extends Timer {
 	
-	audioContext?: AudioContext
+	declare audioContext: AudioContext
+	readonly clock: AudioClock
 
 	/**
-	 * Accurate time in milliseconds
-	 * @returns {Number} The current time as of now
+	 * Audio transport time in seconds.
 	 */
 	get now(): number { 
-		return this.audioContext ? this.audioContext.currentTime : performance.now() 
+		return this.audioTimeSeconds
+	}
+
+	get audioTimeSeconds(): number {
+		return this.audioContext.currentTime
+	}
+
+	get performanceTimeMs(): number {
+		return this.clock.performanceTimeMs
+	}
+
+	/**
+	 * Convert a DOMHighResTimeStamp (milliseconds) to AudioContext seconds.
+	 */
+	performanceToAudioTimeSeconds(performanceTimeMs: number): number {
+		return this.clock.performanceToAudioTimeSeconds(performanceTimeMs)
+	}
+
+	/**
+	 * Convert AudioContext seconds to a DOMHighResTimeStamp (milliseconds).
+	 */
+	audioToPerformanceTimeMs(audioTimeSeconds: number): number {
+		return this.clock.audioToPerformanceTimeMs(audioTimeSeconds)
 	}
 
 	/**
@@ -47,10 +70,12 @@ export default class AudioTimer extends Timer {
 		}
 
 		super( timerOptions, isWorkletTimerType(resolvedTimerType) )
-		if (!this.audioContext)
+		const resolvedAudioContext = this.audioContext
+		if (!resolvedAudioContext)
 		{
 			throw Error('No AudioContext specified')
 		}
+		this.clock = new AudioClock(resolvedAudioContext)
 	}
 
 	/**

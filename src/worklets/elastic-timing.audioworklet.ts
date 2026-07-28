@@ -12,6 +12,10 @@ type ElasticTimingMessage = {
 	metricsInterval?: number
 	time?: number
 	intervals?: number
+	contextTimeSeconds?: number
+	scheduledContextTimeSeconds?: number
+	audioFrame?: number
+	sampleRate?: number
 	buffer?: SharedArrayBuffer
 	drift?: number
 	renderTime?: number

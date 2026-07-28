@@ -605,6 +605,29 @@ describe('Timer Class', () => {
             expect(timer.lastRecordedTime).toBe(0.5)
         })
 
+        it('forwards AudioWorklet timing metadata without changing existing fields', () => {
+            let received
+            timer.setCallback(event => {
+                received = event
+            })
+
+            timer.onTick(0.5, 0.5, 0, 0, 1, 0, true, {
+                contextTimeSeconds: 12.5,
+                scheduledContextTimeSeconds: 12.49,
+                audioFrame: 600_000,
+                sampleRate: 48_000,
+            })
+
+            expect(received).toMatchObject({
+                timePassed: 0.5,
+                expected: 0.5,
+                contextTimeSeconds: 12.5,
+                scheduledContextTimeSeconds: 12.49,
+                audioFrame: 600_000,
+                sampleRate: 48_000,
+            })
+        })
+
         it('should calculate elapsed since last tick', () => {
             timer.lastRecordedTime = 0.5
             // Note: this depends on getNow() which returns performance time

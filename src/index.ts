@@ -44,6 +44,8 @@ export {
 
 // AudioContext-based timer
 export { default as AudioTimer } from './timer-audio'
+export { default as AudioClock } from './audio-clock'
+export type { AudioClockTimestamp, MonotonicNow } from './audio-clock'
 
 // Tap tempo detection
 export { tapTempoQuick, tapTempo } from './tap-tempo'

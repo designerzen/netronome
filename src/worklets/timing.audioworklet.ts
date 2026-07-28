@@ -6,6 +6,10 @@ type TimingMessage = {
 	interval?: number
 	time?: number
 	intervals?: number
+	contextTimeSeconds?: number
+	scheduledContextTimeSeconds?: number
+	audioFrame?: number
+	sampleRate?: number
 }
 
 // Static ?raw import — Vite inlines the file contents as a string at build time,

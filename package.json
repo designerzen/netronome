@@ -1,6 +1,6 @@
 {
   "name": "netronome",
-  "version": "2.7.1",
+  "version": "2.8.0",
   "description": "Rock solid JavaScript timing library with sub-millisecond accuracy",
   "keywords": [
     "timing",

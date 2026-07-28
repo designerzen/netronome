@@ -10,7 +10,7 @@ import {
 
 import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
-import type { SyncMode, TimerSyncOptions, WorkerWrapper } from './timer-interfaces'
+import type { AudioTickTiming, SyncMode, TimerSyncOptions, WorkerWrapper } from './timer-interfaces'
 
 import Epoch from './epoch'
 import { TimerOptions, DEFAULT_SYNC_OPTIONS, DEFAULT_TIMER_OPTIONS } from './timer-options'
@@ -666,7 +666,11 @@ export default class Timer {
         this.#transportAnchorClockTime = anchorClockTime
     }
 
-    createTick(intervals: number, timePased: number): void {
+    createTick(
+        intervals: number,
+        timePased: number,
+        audioTiming: AudioTickTiming = {}
+    ): void {
         const timeBetweenPeriod = this.getCurrentPeriodInSeconds()
         // Expected time stamp
         const expected = this.getExpectedElapsed(intervals)
@@ -684,7 +688,7 @@ export default class Timer {
             this.#transportAnchorExpected = expected
             this.#transportAnchorClockTime = this.now
             this.updateElapsedScale(timePassed)
-            this.onTick(timePassed, expected, drift, level, intervals, lag)
+            this.onTick(timePassed, expected, drift, level, intervals, lag, true, audioTiming)
         }
     }
 
@@ -941,7 +945,12 @@ export default class Timer {
                     // this.onTick(timePassed,expected, drift, level, intervals, lag)
 
                     // timingWorker.postMessage({command:CMD_UPDATE, time:currentTime, interval})
-                    this.createTick(data.intervals, data.time);
+                    this.createTick(data.intervals, data.time, {
+                        contextTimeSeconds: data.contextTimeSeconds,
+                        scheduledContextTimeSeconds: data.scheduledContextTimeSeconds,
+                        audioFrame: data.audioFrame,
+                        sampleRate: data.sampleRate,
+                    });
                     break;
 
                 default:
@@ -1276,7 +1285,8 @@ export default class Timer {
         level: number = 0,
         intervals: number = 0,
         lag: number = 0,
-        advanceDivisions: boolean = true
+        advanceDivisions: boolean = true,
+        audioTiming: AudioTickTiming = {}
     ): void {
 
         this.lastRecordedTime = timePassed;
@@ -1302,6 +1312,7 @@ export default class Timer {
             level,
             intervals,
             lag,
+            ...audioTiming,
             sync: {
                 mode: this.syncMode,
                 status: this.usesNetworkSynchronization() ? 'probing' : (this.usesSynchronization() ? 'locked' : 'free'),

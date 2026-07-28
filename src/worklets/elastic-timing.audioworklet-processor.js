@@ -65,6 +65,18 @@ class ElasticTimingAudioWorkletProcessor extends AudioWorkletProcessor {
 		this.port.postMessage(message)
 	}
 	
+	postTick(scheduledContextTimeSeconds = currentTime) {
+		this.postMessage({
+			event: EVENT_TICK,
+			time: this.elapsed,
+			intervals: this.intervals,
+			contextTimeSeconds: currentTime,
+			scheduledContextTimeSeconds,
+			audioFrame: currentFrame,
+			sampleRate,
+		})
+	}
+
 	reset() {
 		this.intervals = 0
 		this.#underrunCount = 0
@@ -186,7 +198,7 @@ class ElasticTimingAudioWorkletProcessor extends AudioWorkletProcessor {
 			this.#signalHRWorker()
 		}
 		
-		this.postMessage({ event: EVENT_TICK, time: this.elapsed, intervals: this.intervals })
+		this.postTick(currentTime)
 	}
 	
 	/**
@@ -257,6 +269,7 @@ class ElasticTimingAudioWorkletProcessor extends AudioWorkletProcessor {
 	 * Handle timing tick
 	 */
 	onTick(compensatedGap = this.gap) {
+		const scheduledContextTimeSeconds = this.nextInterval
 		this.intervals++
 		this.nextInterval = currentTime + compensatedGap
 		
@@ -265,7 +278,7 @@ class ElasticTimingAudioWorkletProcessor extends AudioWorkletProcessor {
 			this.#signalHRWorker()
 		}
 		
-		this.postMessage({ event: EVENT_TICK, time: this.elapsed, intervals: this.intervals })
+		this.postTick(scheduledContextTimeSeconds)
 	}
 	
 	/**

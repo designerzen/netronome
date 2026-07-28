@@ -104,6 +104,20 @@ export interface TimerSyncMetadata {
 }
 
 /**
+ * Timing captured by an AudioWorklet before its tick message crosses to the
+ * main thread. All context times are AudioContext seconds.
+ */
+export interface AudioTickTiming {
+    /** Context time of the render quantum that emitted the tick. */
+    contextTimeSeconds?: number
+    /** Intended transport-grid time before render-quantum/message latency. */
+    scheduledContextTimeSeconds?: number
+    /** First audio sample frame of the render quantum. */
+    audioFrame?: number
+    sampleRate?: number
+}
+
+/**
  * Callback event fired on each timer tick
  */
 export interface TimerCallbackEvent {
@@ -120,6 +134,10 @@ export interface TimerCallbackEvent {
     intervals: number
     lag: number
     sync?: TimerSyncMetadata
+    contextTimeSeconds?: number
+    scheduledContextTimeSeconds?: number
+    audioFrame?: number
+    sampleRate?: number
 }
 
 /**
