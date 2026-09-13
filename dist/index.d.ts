@@ -31,5 +31,9 @@ export { tapTempoQuick, tapTempo } from './tap-tempo';
 export { default as SyncSession } from './sync-session';
 export * from './sync-session';
 export { default as WebRTCSyncController, createWebRTCSyncController } from './webrtc-sync';
+export { NetworkSession } from './network-session';
+export type { NetworkSessionOptions } from './network-session';
+export { positionAt, networkTickTime, isNetworkTransport } from './network-timeline';
+export type { NetworkTransport } from './network-timeline';
 export * from './webrtc-sync';
 //# sourceMappingURL=index.d.ts.map

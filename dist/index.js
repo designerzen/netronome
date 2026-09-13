@@ -1,4 +1,4 @@
-import { a as _checkPrivateRedeclaration, c as CMD_START, d as EVENT_READY, f as EVENT_STARTING, i as _classPrivateFieldInitSpec, l as CMD_STOP, m as EVENT_TICK, n as _classPrivateFieldGet2, o as CMD_ADJUST_DRIFT, p as EVENT_STOPPING, r as _assertClassBrand, s as CMD_INITIALISE, t as _classPrivateFieldSet2, u as CMD_UPDATE } from "./classPrivateFieldSet2.js";
+import { a as CMD_INITIALISE, c as CMD_UPDATE, d as EVENT_STOPPING, f as EVENT_TICK, i as CMD_ADJUST_DRIFT, l as EVENT_READY, n as _classPrivateFieldGet2, o as CMD_START, r as _classPrivateFieldInitSpec, s as CMD_STOP, t as _classPrivateFieldSet2, u as EVENT_STARTING } from "./classPrivateFieldSet2.js";
 //#region src/tap-tempo.ts
 /**
 * TODO: Implement lienar regression like nayuki
@@ -359,15 +359,15 @@ var _clockTimeToElapsedScale = /* @__PURE__ */ new WeakMap();
 var _running = /* @__PURE__ */ new WeakMap();
 var _active = /* @__PURE__ */ new WeakMap();
 var _bypassed = /* @__PURE__ */ new WeakMap();
-var _options$1 = /* @__PURE__ */ new WeakMap();
+var _options = /* @__PURE__ */ new WeakMap();
 var _epoch = /* @__PURE__ */ new WeakMap();
 var _synchronizationOffset = /* @__PURE__ */ new WeakMap();
 var Timer = class {
 	get options() {
-		return _classPrivateFieldGet2(_options$1, this);
+		return _classPrivateFieldGet2(_options, this);
 	}
 	get syncOptions() {
-		return normalizeSyncOptions(_classPrivateFieldGet2(_options$1, this));
+		return normalizeSyncOptions(_classPrivateFieldGet2(_options, this));
 	}
 	get syncMode() {
 		return this.syncOptions.mode;
@@ -640,7 +640,7 @@ var Timer = class {
 		_classPrivateFieldInitSpec(this, _running, void 0);
 		_classPrivateFieldInitSpec(this, _active, void 0);
 		_classPrivateFieldInitSpec(this, _bypassed, void 0);
-		_classPrivateFieldInitSpec(this, _options$1, void 0);
+		_classPrivateFieldInitSpec(this, _options, void 0);
 		_classPrivateFieldInitSpec(this, _epoch, void 0);
 		_classPrivateFieldInitSpec(this, _synchronizationOffset, void 0);
 		this.startTime = -1;
@@ -677,7 +677,7 @@ var Timer = class {
 			sync: normalizedSync,
 			synch: normalizedSync.mode !== "off"
 		};
-		_classPrivateFieldSet2(_options$1, this, options);
+		_classPrivateFieldSet2(_options, this, options);
 		this.applySyncConfiguration();
 		const optionKeys = Object.keys(options);
 		const contextOptionKeys = optionKeys.filter((key) => key === "contexts" || key === "audioContext");
@@ -791,6 +791,7 @@ var Timer = class {
 		_classPrivateFieldSet2(_transportAnchorClockTime, this, anchorClockTime);
 	}
 	createTick(intervals, timePased, audioTiming = {}) {
+		if (_classPrivateFieldGet2(_bypassed, this)) return;
 		const timeBetweenPeriod = this.getCurrentPeriodInSeconds();
 		const expected = this.getExpectedElapsed(intervals);
 		const timePassed = timePased;
@@ -1011,11 +1012,11 @@ var Timer = class {
 	async startTimer(callback, options = {}) {
 		if (options) {
 			const nextOptions = {
-				..._classPrivateFieldGet2(_options$1, this),
+				..._classPrivateFieldGet2(_options, this),
 				...options
 			};
 			const normalizedSync = normalizeSyncOptions(options, this.syncOptions);
-			_classPrivateFieldSet2(_options$1, this, {
+			_classPrivateFieldSet2(_options, this, {
 				...nextOptions,
 				sync: normalizedSync,
 				synch: normalizedSync.mode !== "off"
@@ -1120,8 +1121,8 @@ var Timer = class {
 			join: this.syncOptions.join,
 			beatsPerBar: this.syncOptions.beatsPerBar
 		};
-		_classPrivateFieldGet2(_options$1, this).sync = sync;
-		_classPrivateFieldGet2(_options$1, this).synch = enabled;
+		_classPrivateFieldGet2(_options, this).sync = sync;
+		_classPrivateFieldGet2(_options, this).synch = enabled;
 		this.applySyncConfiguration();
 	}
 	/**
@@ -1153,6 +1154,16 @@ var Timer = class {
 	*/
 	retrigger() {
 		this.externalTrigger(false);
+	}
+	/** Apply an absolute network pulse without deriving musical position from packet arrival. */
+	networkTick(tick, audioTiming) {
+		if (!_classPrivateFieldGet2(_running, this) || !_classPrivateFieldGet2(_bypassed, this) || !Number.isSafeInteger(tick) || tick < 0) return;
+		this.divisionsElapsed = tick % this.divisions;
+		this.totalBarsElapsed = Math.floor(tick / this.divisions);
+		this.currentBar = this.totalBarsElapsed % this.bars;
+		this.lastRecordedExternalTime = this.now;
+		const scheduled = audioTiming.scheduledContextTimeSeconds ?? this.now * this.clockUnitsToSecondsScale;
+		this.onTick(scheduled, scheduled, 0, tick, tick, 0, false, audioTiming);
 	}
 	/**
 	* Occurs 24 times per beat
@@ -1186,7 +1197,7 @@ var Timer = class {
 			intervals,
 			lag,
 			...audioTiming,
-			sync: {
+			sync: this.networkSync ?? {
 				mode: this.syncMode,
 				status: this.usesNetworkSynchronization() ? "probing" : this.usesSynchronization() ? "locked" : "free",
 				join: this.syncOptions.join,
@@ -1383,6 +1394,7 @@ var SyncSession = class {
 		_classPrivateFieldSet2(_minSamples, this, Math.max(1, minSamples));
 	}
 	addSample(input) {
+		if (!Object.values(input).every(Number.isFinite) || input.clientReceiveTimeMs < input.clientSendTimeMs || input.leaderSendTimeMs < input.leaderReceiveTimeMs) throw new Error("Invalid clock sample");
 		const rttMs = input.clientReceiveTimeMs - input.clientSendTimeMs - (input.leaderSendTimeMs - input.leaderReceiveTimeMs);
 		const sample = {
 			offsetMs: (input.leaderReceiveTimeMs - input.clientSendTimeMs + (input.leaderSendTimeMs - input.clientReceiveTimeMs)) / 2,
@@ -1396,7 +1408,7 @@ var SyncSession = class {
 	clear() {
 		_classPrivateFieldSet2(_samples, this, []);
 	}
-	getEstimate() {
+	getEstimate(nowMs) {
 		if (_classPrivateFieldGet2(_samples, this).length === 0) return {
 			offsetMs: 0,
 			rttMs: 0,
@@ -1408,12 +1420,14 @@ var SyncSession = class {
 		const sliceLength = Math.max(1, Math.ceil(sortedByRtt.length / 2));
 		const bestSamples = sortedByRtt.slice(0, sliceLength);
 		const offsetMs = bestSamples.reduce((sum, sample) => sum + sample.offsetMs, 0) / bestSamples.length;
+		const rttMs = bestSamples.reduce((sum, sample) => sum + sample.rttMs, 0) / bestSamples.length;
+		const jitterMs = Math.sqrt(bestSamples.reduce((sum, sample) => sum + Math.pow(sample.offsetMs - offsetMs, 2), 0) / bestSamples.length);
 		return {
 			offsetMs,
-			rttMs: bestSamples.reduce((sum, sample) => sum + sample.rttMs, 0) / bestSamples.length,
-			jitterMs: Math.sqrt(bestSamples.reduce((sum, sample) => sum + Math.pow(sample.offsetMs - offsetMs, 2), 0) / bestSamples.length),
+			rttMs,
+			jitterMs,
 			sampleCount: _classPrivateFieldGet2(_samples, this).length,
-			locked: _classPrivateFieldGet2(_samples, this).length >= _classPrivateFieldGet2(_minSamples, this)
+			locked: _classPrivateFieldGet2(_samples, this).length >= _classPrivateFieldGet2(_minSamples, this) && jitterMs <= 10 && rttMs <= 250 && (nowMs === void 0 || nowMs - _classPrivateFieldGet2(_samples, this)[_classPrivateFieldGet2(_samples, this).length - 1].receivedAtMs <= 3e3)
 		};
 	}
 	leaderToLocalTime(leaderTimeMs) {
@@ -1424,402 +1438,510 @@ var SyncSession = class {
 	}
 };
 //#endregion
-//#region \0@oxc-project+runtime@0.130.0/helpers/classPrivateMethodInitSpec.js
-function _classPrivateMethodInitSpec(e, a) {
-	_checkPrivateRedeclaration(e, a), a.add(e);
+//#region src/worklets/network-timing-processor.js?raw
+var network_timing_processor_default = "// Shared transport anchors are converted to audio seconds before reaching this worklet.\nclass NetworkTimingProcessor extends AudioWorkletProcessor {\n    states = []\n    revision = -1\n    tick = -1\n    constructor() {\n        super()\n        this.port.onmessage = ({ data }) => {\n            if (data.type === 'clear') {\n                this.states = []\n                this.revision = -1\n                this.tick = -1\n            } else if (data.type === 'timeline') {\n                this.states = data.states\n            }\n        }\n    }\n    process() {\n        let state\n        for (const candidate of this.states) {\n            if (candidate.audioTime <= currentTime) state = candidate\n        }\n        if (!state) return true\n        const interval = 60 / (state.bpm * state.divisions)\n        if (this.revision !== state.revision) {\n            this.revision = state.revision\n            // Late joins skip elapsed ticks and retain absolute musical position.\n            this.tick = Math.max(Math.ceil(state.position * state.divisions - 1e-7),\n                Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1) - 1\n            this.port.postMessage({ state, scheduledContextTimeSeconds: state.audioTime + 0.1 })\n        }\n        if (!state.playing) return true\n        // A suspended context must never replay a backlog of musical events.\n        let next = Math.max(this.tick + 1,\n            Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1)\n        for (let count = 0; count < 4; count++, next++) {\n            const scheduled = state.audioTime + (next - state.position * state.divisions\n                + (next % 2 ? state.swing : 0)) * interval\n            if (scheduled > currentTime + 1e-7) break\n            this.tick = next\n            if (scheduled < currentTime - 256 / sampleRate) continue\n            this.port.postMessage({ state, tick: next, scheduledContextTimeSeconds: scheduled + 0.1,\n                contextTimeSeconds: currentTime, audioFrame: currentFrame, sampleRate })\n        }\n        return true\n    }\n}\nregisterProcessor('netronome-network-timing', NetworkTimingProcessor)\n";
+//#endregion
+//#region src/network-audio-scheduler.ts
+var modules = /* @__PURE__ */ new WeakMap();
+async function createNetworkAudioScheduler(timer, onTransport) {
+	const context = timer.audioContext;
+	if (!context?.audioWorklet) throw new Error("Network timing requires an AudioWorklet-capable audio context");
+	let module = modules.get(context);
+	if (!module) {
+		const url = URL.createObjectURL(new Blob([network_timing_processor_default], { type: "application/javascript" }));
+		module = context.audioWorklet.addModule(url).finally(() => URL.revokeObjectURL(url));
+		modules.set(context, module);
+		module.catch(() => modules.delete(context));
+	}
+	await module;
+	const node = new AudioWorkletNode(context, "netronome-network-timing", {
+		numberOfInputs: 0,
+		outputChannelCount: [1]
+	});
+	node.connect(context.destination);
+	const audioClock = new AudioClock(context);
+	let alive = true;
+	let enabled = false;
+	let revisions = /* @__PURE__ */ new Set();
+	node.port.onmessage = ({ data }) => {
+		if (!alive || !enabled || !timer.isUsingExternalTrigger) return;
+		if (!revisions.has(data.state?.revision)) return;
+		if (context.currentTime - data.scheduledContextTimeSeconds > .1) return;
+		onTransport(data.state);
+		if (data.tick !== void 0) timer.networkTick(data.tick, data);
+	};
+	return {
+		setTimeline(states, offsetMs) {
+			if (!alive) return;
+			enabled = true;
+			revisions = new Set(states.map((state) => state.revision));
+			const pair = audioClock.getTimestampPair();
+			const audioOrigin = pair.contextTime - pair.performanceTime / 1e3;
+			node.port.postMessage({
+				type: "timeline",
+				states: states.map((state) => ({
+					...state,
+					audioTime: audioOrigin + (state.timestamp - offsetMs) / 1e3 - .1
+				}))
+			});
+		},
+		clear() {
+			enabled = false;
+			node.port.postMessage({ type: "clear" });
+		},
+		destroy() {
+			alive = false;
+			enabled = false;
+			node.port.onmessage = null;
+			node.port.close();
+			node.disconnect();
+		}
+	};
 }
 //#endregion
-//#region src/webrtc-sync.ts
-var DEFAULT_OPTIONS = {
-	role: "leader",
-	sampleWindow: 16,
-	minSamples: 4,
-	pingIntervalMs: 1e3,
-	heartbeatIntervalMs: 1e3,
-	startLookaheadMs: 1200,
-	resyncThresholdMs: 30,
-	channelLabel: "netronome-sync"
+//#region src/network-timeline.ts
+var isNetworkTransport = (value) => Boolean(value && Number.isSafeInteger(value.revision) && value.revision >= 0 && typeof value.playing === "boolean" && Number.isFinite(value.timestamp) && Number.isFinite(value.position) && value.position >= 0 && Number.isFinite(value.bpm) && value.bpm >= 10 && value.bpm <= 300 && Number.isFinite(value.swing) && value.swing >= 0 && value.swing <= 1 && Number.isInteger(value.divisions) && value.divisions >= 1 && value.divisions <= 96 && Number.isInteger(value.bars) && value.bars >= 1 && value.bars <= 32);
+var positionAt = (state, timestamp) => state.position + (state.playing ? Math.max(0, timestamp - state.timestamp) * state.bpm / 6e4 : 0);
+/** Match Timer's swing convention: delay odd divisions by a fraction of one division. */
+var networkTickTime = (state, tick) => state.timestamp + (tick / state.divisions - state.position + (tick % 2 ? state.swing / state.divisions : 0)) * 6e4 / state.bpm;
+//#endregion
+//#region src/network-session.ts
+/** One transport and one audio scheduler per machine, independent of WS/WebRTC routing. */
+var NetworkSession = class {
+	constructor(timer, options) {
+		this.peers = /* @__PURE__ */ new Map();
+		this.timeline = [];
+		this.destroyed = false;
+		this.activeRevision = -1;
+		this.sequence = 0;
+		this.ready = false;
+		this.ownsTimer = false;
+		this.timer = timer;
+		this.options = options;
+		this.now = options.now ?? (() => performance.now());
+	}
+	get isLeader() {
+		return this.options.peerId === this.options.leaderId;
+	}
+	start() {
+		if (this.destroyed) return Promise.reject(/* @__PURE__ */ new Error("Session has been destroyed"));
+		return this.starting ?? (this.starting = this.initialize());
+	}
+	async initialize() {
+		const scheduler = this.options.scheduler ?? await createNetworkAudioScheduler(this.timer, (state) => this.applyTransport(state));
+		if (this.destroyed) {
+			scheduler.destroy();
+			return;
+		}
+		this.scheduler = scheduler;
+		await this.timer.loaded;
+		if (this.destroyed) return;
+		this.timer.bypass(true);
+		this.ownsTimer = true;
+		await this.timer.startTimer(this.timer.callback, { sync: { mode: "off" } });
+		if (this.destroyed) return;
+		this.ready = true;
+		this.interval = setInterval(() => this.poll(), Math.max(100, this.options.pollIntervalMs ?? 250));
+		this.updateScheduler();
+		this.poll();
+	}
+	addPeer(id) {
+		if (id === this.options.peerId || this.peers.has(id)) return;
+		this.peers.set(id, {
+			clock: new SyncSession(this.options.sampleWindow, this.options.minSamples),
+			pending: /* @__PURE__ */ new Set(),
+			lastSeen: this.now()
+		});
+		this.poll();
+	}
+	removePeer(id) {
+		this.peers.delete(id);
+		if (id === this.options.leaderId) this.scheduler?.clear();
+		this.emit();
+	}
+	send(id, data) {
+		if (!this.destroyed) this.options.send(id, {
+			protocol: "netronome/1",
+			...data
+		});
+	}
+	current(at = this.now()) {
+		const leaderTime = at + this.offset();
+		const states = this.timeline.filter((state) => state.timestamp <= leaderTime);
+		return states[states.length - 1];
+	}
+	offset() {
+		return this.isLeader ? 0 : this.peers.get(this.options.leaderId)?.clock.getEstimate(this.now()).offsetMs ?? 0;
+	}
+	locked() {
+		return this.isLeader || Boolean(this.peers.get(this.options.leaderId)?.clock.getEstimate(this.now()).locked);
+	}
+	applyTransport(state) {
+		if (this.activeRevision >= state.revision) return;
+		this.activeRevision = state.revision;
+		this.timer.BPM = state.bpm;
+		this.timer.swing = state.swing;
+		this.timer.divisions = state.divisions;
+		this.timer.bars = state.bars;
+		this.options.onTransport?.(state);
+	}
+	updateScheduler() {
+		if (!this.ready) return;
+		const estimate = this.peers.get(this.options.leaderId)?.clock.getEstimate(this.now());
+		this.timer.networkSync = {
+			mode: this.isLeader ? "network-leader" : "network-follower",
+			status: this.locked() ? "locked" : "probing",
+			clockOffsetMs: this.offset(),
+			clockJitterMs: estimate?.jitterMs ?? 0,
+			transportRevision: this.current()?.revision,
+			leaderTimeMs: this.now() + this.offset()
+		};
+		if (!this.locked()) {
+			this.scheduler?.clear();
+			return;
+		}
+		this.scheduler?.setTimeline(this.timeline, this.offset());
+		const state = this.current();
+		if (state) this.applyTransport(state);
+	}
+	poll() {
+		if (this.destroyed) return;
+		const now = this.now();
+		for (const [id, peer] of this.peers) {
+			for (const stamp of peer.pending) if (now - stamp > 5e3) peer.pending.delete(stamp);
+			peer.pending.add(now);
+			this.send(id, {
+				type: "ping",
+				timestamp: now
+			});
+			this.sendState(id);
+		}
+		this.updateScheduler();
+		this.emit();
+	}
+	sendState(id) {
+		const state = this.current();
+		this.send(id, {
+			type: "state",
+			leaderId: this.options.leaderId,
+			timestamp: this.now(),
+			playing: state?.playing ?? false,
+			position: state ? positionAt(state, this.now() + this.offset()) : 0,
+			bpm: state?.bpm ?? this.timer.BPM,
+			swing: state?.swing ?? this.timer.swing,
+			timeline: this.isLeader ? this.timeline : [],
+			locked: this.locked()
+		});
+	}
+	receive(id, message) {
+		if (this.destroyed || !message || message.protocol !== "netronome/1") return;
+		const peer = this.peers.get(id);
+		if (!peer) return;
+		const now = this.now();
+		if (message.type === "ping" && Number.isFinite(message.timestamp)) this.send(id, {
+			type: "pong",
+			timestamp: message.timestamp,
+			received: now,
+			sent: this.now()
+		});
+		else if (message.type === "pong" && peer.pending.delete(message.timestamp) && Number.isFinite(message.received) && Number.isFinite(message.sent)) {
+			try {
+				peer.clock.addSample({
+					clientSendTimeMs: message.timestamp,
+					clientReceiveTimeMs: now,
+					leaderReceiveTimeMs: message.received,
+					leaderSendTimeMs: message.sent
+				});
+			} catch {
+				return;
+			}
+			peer.lastSeen = now;
+			this.updateScheduler();
+		} else if (message.type === "state" && !this.isLeader && id === this.options.leaderId && message.leaderId === id && Array.isArray(message.timeline) && message.timeline.length > 0 && message.timeline.length <= 2 && message.timeline.every(isNetworkTransport)) {
+			const incoming = message.timeline;
+			if (incoming.some((state, index) => index > 0 && (state.revision <= incoming[index - 1].revision || state.timestamp < incoming[index - 1].timestamp))) return;
+			if (incoming[incoming.length - 1].revision < (this.timeline[this.timeline.length - 1]?.revision ?? -1)) return;
+			for (const state of incoming) {
+				const existing = this.timeline.find((item) => item.revision === state.revision);
+				if (existing && JSON.stringify(existing) !== JSON.stringify(state)) return;
+			}
+			this.timeline = incoming;
+			peer.lastSeen = now;
+			this.updateScheduler();
+		}
+		this.emit();
+	}
+	/** Coalesce edits onto the same future bar; preserve position under tempo changes. */
+	setTransport(change, effectiveTimeMs) {
+		if (!this.isLeader) throw new Error("Only the host can change shared transport");
+		if (this.destroyed || !this.ready) throw new Error("Session is not ready");
+		const now = this.now();
+		const current = this.current();
+		const pending = this.timeline.find((state) => state.timestamp > now);
+		const base = pending ?? current;
+		let timestamp = pending?.timestamp ?? now + Math.max(500, this.options.lookaheadMs ?? 600);
+		let position = current ? positionAt(current, timestamp) : 0;
+		if (!pending && current?.playing) {
+			position = Math.ceil(position / 4) * 4;
+			timestamp = current.timestamp + (position - current.position) * 6e4 / current.bpm;
+		}
+		if (pending) position = pending.position;
+		if (effectiveTimeMs !== void 0) {
+			if (!Number.isFinite(effectiveTimeMs) || effectiveTimeMs < now + 200) throw new Error("Transport changes need at least 200 ms of scheduling headroom");
+			timestamp = effectiveTimeMs;
+			position = current ? positionAt(current, timestamp) : 0;
+		}
+		const state = {
+			revision: ++this.sequence,
+			playing: base?.playing ?? false,
+			timestamp,
+			position,
+			bpm: base?.bpm ?? this.timer.BPM,
+			swing: base?.swing ?? this.timer.swing,
+			divisions: this.timer.divisions,
+			bars: this.timer.bars,
+			...change
+		};
+		if (!isNetworkTransport(state)) throw new Error("Invalid shared transport");
+		this.timeline = current ? [current, state] : [state];
+		this.updateScheduler();
+		for (const id of this.peers.keys()) this.sendState(id);
+		this.emit();
+		return state;
+	}
+	getState() {
+		const state = this.current();
+		const locked = this.locked();
+		return {
+			role: this.isLeader ? "leader" : "follower",
+			ready: this.ready,
+			status: !this.isLeader && !this.peers.has(this.options.leaderId) ? "disconnected" : !locked ? "synchronizing" : this.timeline.some((s) => s.timestamp > this.now() + this.offset()) ? "armed" : "locked",
+			playing: state?.playing ?? false,
+			position: state ? positionAt(state, this.now() + this.offset()) : 0,
+			bpm: state?.bpm ?? this.timer.BPM,
+			swing: state?.swing ?? this.timer.swing,
+			peers: [...this.peers].map(([id, peer]) => ({
+				id,
+				...peer.clock.getEstimate(this.now())
+			}))
+		};
+	}
+	emit() {
+		this.options.onStateChange?.(this.getState());
+	}
+	async destroy() {
+		this.destroyed = true;
+		clearInterval(this.interval);
+		this.scheduler?.destroy();
+		try {
+			await this.starting;
+		} catch {}
+		this.peers.clear();
+		this.timeline = [];
+		if (this.ownsTimer) {
+			await this.timer.stopTimer();
+			this.timer.isRunning = false;
+			this.timer.networkSync = void 0;
+			this.timer.bypass(false);
+			this.ownsTimer = false;
+		}
+		this.ready = false;
+	}
 };
-var DEFAULT_RTC_CONFIGURATION = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
-var _options = /* @__PURE__ */ new WeakMap();
-var _peerConnection = /* @__PURE__ */ new WeakMap();
-var _dataChannel = /* @__PURE__ */ new WeakMap();
-var _syncSession = /* @__PURE__ */ new WeakMap();
-var _pingIntervalId = /* @__PURE__ */ new WeakMap();
-var _heartbeatIntervalId = /* @__PURE__ */ new WeakMap();
-var _scheduledTickTimeoutId = /* @__PURE__ */ new WeakMap();
-var _leaderStartTimeMs = /* @__PURE__ */ new WeakMap();
-var _lastTriggeredTick = /* @__PURE__ */ new WeakMap();
-var _isFollowerRunning = /* @__PURE__ */ new WeakMap();
-var _transportSnapshot = /* @__PURE__ */ new WeakMap();
-var _destroyed = /* @__PURE__ */ new WeakMap();
-var _WebRTCSyncController_brand = /* @__PURE__ */ new WeakSet();
+//#endregion
+//#region src/webrtc-sync.ts
+/** Single-peer compatibility facade. Use NetworkSession for rooms and multiple transports. */
 var WebRTCSyncController = class {
 	constructor(timer, options) {
-		_classPrivateMethodInitSpec(this, _WebRTCSyncController_brand);
-		_classPrivateFieldInitSpec(this, _options, void 0);
-		_classPrivateFieldInitSpec(this, _peerConnection, null);
-		_classPrivateFieldInitSpec(this, _dataChannel, null);
-		_classPrivateFieldInitSpec(this, _syncSession, void 0);
-		_classPrivateFieldInitSpec(this, _pingIntervalId, null);
-		_classPrivateFieldInitSpec(this, _heartbeatIntervalId, null);
-		_classPrivateFieldInitSpec(this, _scheduledTickTimeoutId, null);
-		_classPrivateFieldInitSpec(this, _leaderStartTimeMs, null);
-		_classPrivateFieldInitSpec(this, _lastTriggeredTick, -1);
-		_classPrivateFieldInitSpec(this, _isFollowerRunning, false);
-		_classPrivateFieldInitSpec(this, _transportSnapshot, void 0);
-		_classPrivateFieldInitSpec(this, _destroyed, false);
+		this.pc = null;
+		this.channel = null;
+		this.candidates = [];
+		this.destroyed = false;
+		this.iceWaits = /* @__PURE__ */ new Set();
 		this.timer = timer;
-		_classPrivateFieldSet2(_options, this, {
-			...DEFAULT_OPTIONS,
-			...options
-		});
-		this.role = _classPrivateFieldGet2(_options, this).role;
-		_classPrivateFieldSet2(_syncSession, this, new SyncSession(_classPrivateFieldGet2(_options, this).sampleWindow, _classPrivateFieldGet2(_options, this).minSamples));
-		_classPrivateFieldSet2(_transportSnapshot, this, _assertClassBrand(_WebRTCSyncController_brand, this, _readTransportSnapshot).call(this));
-		_assertClassBrand(_WebRTCSyncController_brand, this, _ensurePeerConnection).call(this);
+		this.options = options;
+		this.role = options.role;
+		if (typeof RTCPeerConnection === "undefined") return;
+		const pc = new RTCPeerConnection(options.rtcConfig ?? { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+		this.pc = pc;
+		pc.onicecandidate = ({ candidate }) => {
+			if (candidate) this.onSignal?.({
+				type: "candidate",
+				candidate: candidate.toJSON()
+			});
+		};
+		pc.ondatachannel = ({ channel }) => this.attach(channel);
+		if (this.role === "leader") this.attach(pc.createDataChannel(options.channelLabel ?? "netronome-sync", { ordered: true }));
+	}
+	peer() {
+		if (this.destroyed || !this.pc) throw new Error("RTCPeerConnection is not available");
+		return this.pc;
+	}
+	attach(channel) {
+		this.channel = channel;
+		channel.onopen = () => {
+			this.ensureSession().then(() => this.onStateChange?.(this.getState())).catch(() => {
+				channel.close();
+				this.onStateChange?.(this.getState());
+			});
+		};
+		channel.onclose = () => {
+			this.session?.removePeer(this.role === "leader" ? "follower" : "leader");
+			this.onStateChange?.(this.getState());
+		};
+		channel.onmessage = ({ data }) => {
+			if (typeof data !== "string" || data.length > 32768) return;
+			try {
+				this.session?.receive(this.role === "leader" ? "follower" : "leader", JSON.parse(data));
+			} catch {}
+		};
+	}
+	async ensureSession() {
+		if (this.destroyed) throw new Error("Controller has been destroyed");
+		if (!this.session) {
+			this.session = new NetworkSession(this.timer, {
+				peerId: this.role,
+				leaderId: "leader",
+				lookaheadMs: this.options.startLookaheadMs,
+				sampleWindow: this.options.sampleWindow,
+				minSamples: this.options.minSamples,
+				pollIntervalMs: this.options.pingIntervalMs ?? this.options.heartbeatIntervalMs,
+				send: (_id, message) => {
+					if (this.channel?.readyState === "open") this.channel.send(JSON.stringify(message));
+				},
+				onStateChange: () => this.onStateChange?.(this.getState())
+			});
+			this.sessionReady = this.session.start();
+		}
+		await this.sessionReady;
+		if (this.channel?.readyState === "open") this.session.addPeer(this.role === "leader" ? "follower" : "leader");
 	}
 	async start() {
 		if (this.role !== "leader") return;
-		const peerConnection = _classPrivateFieldGet2(_peerConnection, this);
-		if (!peerConnection) throw new Error("RTCPeerConnection is not available in this environment");
-		const offer = await peerConnection.createOffer();
-		await peerConnection.setLocalDescription(offer);
+		const pc = this.peer();
+		await pc.setLocalDescription(await pc.createOffer());
 		this.onSignal?.({
 			type: "description",
-			description: offer
+			description: pc.localDescription.toJSON()
 		});
 	}
-	async createOfferBundle() {
-		if (this.role !== "leader") throw new Error("Only the leader can create an offer bundle");
-		const peerConnection = _classPrivateFieldGet2(_peerConnection, this);
-		if (!peerConnection) throw new Error("RTCPeerConnection is not available in this environment");
-		const offer = await peerConnection.createOffer();
-		await peerConnection.setLocalDescription(offer);
-		await _assertClassBrand(_WebRTCSyncController_brand, this, _waitForIceGatheringComplete).call(this);
-		if (!peerConnection.localDescription) throw new Error("Failed to gather local offer description");
-		return { description: peerConnection.localDescription.toJSON() };
+	async gather() {
+		const pc = this.peer();
+		if (pc.iceGatheringState !== "complete") await new Promise((resolve, reject) => {
+			const cleanup = () => {
+				clearTimeout(timeout);
+				pc.removeEventListener("icegatheringstatechange", check);
+				this.iceWaits.delete(cancel);
+			};
+			const cancel = () => {
+				cleanup();
+				reject(/* @__PURE__ */ new Error("ICE gathering cancelled"));
+			};
+			const check = () => {
+				if (pc.iceGatheringState === "complete") {
+					cleanup();
+					resolve();
+				}
+			};
+			const timeout = setTimeout(() => {
+				cleanup();
+				reject(/* @__PURE__ */ new Error("ICE gathering timed out"));
+			}, 1e4);
+			this.iceWaits.add(cancel);
+			pc.addEventListener("icegatheringstatechange", check);
+			check();
+		});
+		return { description: this.peer().localDescription.toJSON() };
 	}
-	async createAnswerBundle() {
-		const peerConnection = _classPrivateFieldGet2(_peerConnection, this);
-		if (!peerConnection) throw new Error("RTCPeerConnection is not available in this environment");
-		if (!peerConnection.remoteDescription) throw new Error("Remote offer must be set before creating an answer bundle");
-		const answer = await peerConnection.createAnswer();
-		await peerConnection.setLocalDescription(answer);
-		await _assertClassBrand(_WebRTCSyncController_brand, this, _waitForIceGatheringComplete).call(this);
-		if (!peerConnection.localDescription) throw new Error("Failed to gather local answer description");
-		return { description: peerConnection.localDescription.toJSON() };
+	async createOfferBundle() {
+		if (this.role !== "leader") throw new Error("Only the leader can create an offer");
+		await this.start();
+		return this.gather();
 	}
 	async applyOfferBundle(bundle) {
-		if (this.role !== "follower") throw new Error("Only the follower can apply an offer bundle");
+		if (this.role !== "follower") throw new Error("Only the follower can apply an offer");
 		await this.handleSignal({
 			type: "description",
 			description: bundle.description
 		});
 	}
+	async createAnswerBundle() {
+		if (this.role !== "follower" || !this.peer().remoteDescription) throw new Error("Apply an offer first");
+		return this.gather();
+	}
 	async applyAnswerBundle(bundle) {
-		if (this.role !== "leader") throw new Error("Only the leader can apply an answer bundle");
+		if (this.role !== "leader") throw new Error("Only the leader can apply an answer");
 		await this.handleSignal({
 			type: "description",
 			description: bundle.description
 		});
 	}
 	async handleSignal(signal) {
-		const peerConnection = _classPrivateFieldGet2(_peerConnection, this);
-		if (!peerConnection) throw new Error("RTCPeerConnection is not available in this environment");
+		const pc = this.peer();
 		if (signal.type === "candidate") {
-			await peerConnection.addIceCandidate(signal.candidate);
+			if (pc.remoteDescription) await pc.addIceCandidate(signal.candidate);
+			else if (this.candidates.length < 100) this.candidates.push(signal.candidate);
 			return;
 		}
-		const { description } = signal;
-		await peerConnection.setRemoteDescription(description);
-		if (description.type === "offer") {
-			const answer = await peerConnection.createAnswer();
-			await peerConnection.setLocalDescription(answer);
+		await pc.setRemoteDescription(signal.description);
+		for (const candidate of this.candidates.splice(0)) await pc.addIceCandidate(candidate);
+		if (signal.description.type === "offer") {
+			await pc.setLocalDescription(await pc.createAnswer());
 			this.onSignal?.({
 				type: "description",
-				description: answer
+				description: pc.localDescription.toJSON()
 			});
 		}
 	}
-	async startSynchronized(lookaheadMs = _classPrivateFieldGet2(_options, this).startLookaheadMs) {
+	async startSynchronized(lookaheadMs = this.options.startLookaheadMs) {
 		if (this.role !== "leader") throw new Error("Only the leader can initiate synchronized start");
-		if (this.timer.isRunning) await this.timer.stopTimer();
-		_classPrivateFieldSet2(_transportSnapshot, this, _assertClassBrand(_WebRTCSyncController_brand, this, _readTransportSnapshot).call(this));
-		_classPrivateFieldSet2(_leaderStartTimeMs, this, _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this) + Math.max(250, lookaheadMs));
-		_assertClassBrand(_WebRTCSyncController_brand, this, _send).call(this, {
-			type: "prepare-start",
-			leaderStartTimeMs: _classPrivateFieldGet2(_leaderStartTimeMs, this),
-			transport: _classPrivateFieldGet2(_transportSnapshot, this)
+		if (lookaheadMs !== void 0) this.options.startLookaheadMs = lookaheadMs;
+		await this.ensureSession();
+		if (lookaheadMs !== void 0) this.session.options.lookaheadMs = lookaheadMs;
+		this.session.setTransport({
+			playing: true,
+			position: 0
 		});
-		const delayMs = Math.max(0, _classPrivateFieldGet2(_leaderStartTimeMs, this) - _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this));
-		globalThis.setTimeout(() => {
-			this.timer.startTimer(this.timer.callback);
-		}, delayMs);
 	}
 	async stopSynchronized() {
-		if (this.role === "leader") _assertClassBrand(_WebRTCSyncController_brand, this, _send).call(this, {
-			type: "stop",
-			leaderTimeMs: _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this)
-		});
-		_classPrivateFieldSet2(_leaderStartTimeMs, this, null);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _clearScheduledTick).call(this);
-		_classPrivateFieldSet2(_isFollowerRunning, this, false);
-		await this.timer.stopTimer();
+		if (this.role === "leader" && this.session) this.session.setTransport({ playing: false });
+		else await this.destroy();
 	}
-	broadcastTempoUpdate(effectiveLeaderTimeMs = _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this) + _classPrivateFieldGet2(_options, this).startLookaheadMs) {
-		if (this.role !== "leader") return;
-		_classPrivateFieldSet2(_transportSnapshot, this, _assertClassBrand(_WebRTCSyncController_brand, this, _readTransportSnapshot).call(this));
-		_assertClassBrand(_WebRTCSyncController_brand, this, _send).call(this, {
-			type: "tempo-update",
-			effectiveLeaderTimeMs,
-			transport: _classPrivateFieldGet2(_transportSnapshot, this)
-		});
+	broadcastTempoUpdate(effectiveLeaderTimeMs) {
+		if (this.role !== "leader" || !this.session) return;
+		const bpm = this.timer.BPM, swing = this.timer.swing;
+		const current = this.session.getState();
+		this.timer.BPM = current.bpm;
+		this.timer.swing = current.swing;
+		this.session.setTransport({
+			bpm,
+			swing
+		}, effectiveLeaderTimeMs);
 	}
 	getState() {
-		const estimate = _classPrivateFieldGet2(_syncSession, this).getEstimate();
+		const peer = (this.session?.getState())?.peers[0];
 		return {
 			role: this.role,
-			connected: _classPrivateFieldGet2(_dataChannel, this)?.readyState === "open",
-			sampleCount: estimate.sampleCount,
-			offsetMs: estimate.offsetMs,
-			rttMs: estimate.rttMs,
-			jitterMs: estimate.jitterMs,
-			locked: estimate.locked
+			connected: this.channel?.readyState === "open",
+			sampleCount: peer?.sampleCount ?? 0,
+			offsetMs: peer?.offsetMs ?? 0,
+			rttMs: peer?.rttMs ?? 0,
+			jitterMs: peer?.jitterMs ?? 0,
+			locked: peer?.locked ?? false
 		};
 	}
 	async destroy() {
-		_classPrivateFieldSet2(_destroyed, this, true);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _stopPingLoop).call(this);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _stopHeartbeatLoop).call(this);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _clearScheduledTick).call(this);
-		_classPrivateFieldSet2(_isFollowerRunning, this, false);
-		if (_classPrivateFieldGet2(_dataChannel, this)) {
-			_classPrivateFieldGet2(_dataChannel, this).close();
-			_classPrivateFieldSet2(_dataChannel, this, null);
-		}
-		if (_classPrivateFieldGet2(_peerConnection, this)) {
-			_classPrivateFieldGet2(_peerConnection, this).close();
-			_classPrivateFieldSet2(_peerConnection, this, null);
-		}
+		this.destroyed = true;
+		for (const cancel of [...this.iceWaits]) cancel();
+		await this.session?.destroy();
+		this.channel?.close();
+		this.channel = null;
+		this.pc?.close();
+		this.pc = null;
 	}
 };
-function _nowMs() {
-	return performance.now();
-}
-function _readTransportSnapshot() {
-	return {
-		bpm: this.timer.BPM,
-		divisions: this.timer.divisions,
-		bars: this.timer.bars,
-		swing: this.timer.swing,
-		periodMs: this.timer.timeBetween
-	};
-}
-function _emitState() {
-	const estimate = _classPrivateFieldGet2(_syncSession, this).getEstimate();
-	this.onStateChange?.({
-		role: this.role,
-		connected: _classPrivateFieldGet2(_dataChannel, this)?.readyState === "open",
-		sampleCount: estimate.sampleCount,
-		offsetMs: estimate.offsetMs,
-		rttMs: estimate.rttMs,
-		jitterMs: estimate.jitterMs,
-		locked: estimate.locked
-	});
-}
-function _ensurePeerConnection() {
-	if (_classPrivateFieldGet2(_peerConnection, this) || typeof RTCPeerConnection === "undefined") return;
-	const peerConnection = new RTCPeerConnection(_classPrivateFieldGet2(_options, this).rtcConfig ?? DEFAULT_RTC_CONFIGURATION);
-	_classPrivateFieldSet2(_peerConnection, this, peerConnection);
-	peerConnection.onicecandidate = (event) => {
-		if (event.candidate) this.onSignal?.({
-			type: "candidate",
-			candidate: event.candidate.toJSON()
-		});
-	};
-	peerConnection.ondatachannel = (event) => {
-		_assertClassBrand(_WebRTCSyncController_brand, this, _attachDataChannel).call(this, event.channel);
-	};
-	if (this.role === "leader") {
-		const dataChannel = peerConnection.createDataChannel(_classPrivateFieldGet2(_options, this).channelLabel, { ordered: true });
-		_assertClassBrand(_WebRTCSyncController_brand, this, _attachDataChannel).call(this, dataChannel);
-	}
-}
-function _attachDataChannel(dataChannel) {
-	_classPrivateFieldSet2(_dataChannel, this, dataChannel);
-	dataChannel.onopen = () => {
-		if (this.role === "follower") _assertClassBrand(_WebRTCSyncController_brand, this, _startPingLoop).call(this);
-		else _assertClassBrand(_WebRTCSyncController_brand, this, _startHeartbeatLoop).call(this);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _emitState).call(this);
-	};
-	dataChannel.onclose = () => {
-		_assertClassBrand(_WebRTCSyncController_brand, this, _stopPingLoop).call(this);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _stopHeartbeatLoop).call(this);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _clearScheduledTick).call(this);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _emitState).call(this);
-	};
-	dataChannel.onmessage = (event) => {
-		const parsed = JSON.parse(String(event.data));
-		_assertClassBrand(_WebRTCSyncController_brand, this, _handleWireMessage).call(this, parsed);
-	};
-}
-function _send(message) {
-	if (_classPrivateFieldGet2(_destroyed, this) || !_classPrivateFieldGet2(_dataChannel, this) || _classPrivateFieldGet2(_dataChannel, this).readyState !== "open") return;
-	_classPrivateFieldGet2(_dataChannel, this).send(JSON.stringify(message));
-}
-async function _waitForIceGatheringComplete() {
-	const peerConnection = _classPrivateFieldGet2(_peerConnection, this);
-	if (!peerConnection || peerConnection.iceGatheringState === "complete") return;
-	await new Promise((resolve) => {
-		const onStateChange = () => {
-			if (!peerConnection || peerConnection.iceGatheringState !== "complete") return;
-			peerConnection.removeEventListener("icegatheringstatechange", onStateChange);
-			resolve();
-		};
-		peerConnection.addEventListener("icegatheringstatechange", onStateChange);
-	});
-}
-function _startPingLoop() {
-	_assertClassBrand(_WebRTCSyncController_brand, this, _stopPingLoop).call(this);
-	const ping = () => {
-		const clientSendTimeMs = _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _send).call(this, {
-			type: "sync-ping",
-			id: `${clientSendTimeMs}-${Math.random()}`,
-			clientSendTimeMs
-		});
-	};
-	ping();
-	_classPrivateFieldSet2(_pingIntervalId, this, setInterval(ping, _classPrivateFieldGet2(_options, this).pingIntervalMs));
-}
-function _stopPingLoop() {
-	if (_classPrivateFieldGet2(_pingIntervalId, this)) {
-		clearInterval(_classPrivateFieldGet2(_pingIntervalId, this));
-		_classPrivateFieldSet2(_pingIntervalId, this, null);
-	}
-}
-function _startHeartbeatLoop() {
-	_assertClassBrand(_WebRTCSyncController_brand, this, _stopHeartbeatLoop).call(this);
-	const beat = () => {
-		_classPrivateFieldSet2(_transportSnapshot, this, _assertClassBrand(_WebRTCSyncController_brand, this, _readTransportSnapshot).call(this));
-		_assertClassBrand(_WebRTCSyncController_brand, this, _send).call(this, {
-			type: "heartbeat",
-			leaderNowMs: _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this),
-			transport: _classPrivateFieldGet2(_transportSnapshot, this),
-			leaderStartTimeMs: _classPrivateFieldGet2(_leaderStartTimeMs, this)
-		});
-	};
-	beat();
-	_classPrivateFieldSet2(_heartbeatIntervalId, this, setInterval(beat, _classPrivateFieldGet2(_options, this).heartbeatIntervalMs));
-}
-function _stopHeartbeatLoop() {
-	if (_classPrivateFieldGet2(_heartbeatIntervalId, this)) {
-		clearInterval(_classPrivateFieldGet2(_heartbeatIntervalId, this));
-		_classPrivateFieldSet2(_heartbeatIntervalId, this, null);
-	}
-}
-function _handleWireMessage(message) {
-	switch (message.type) {
-		case "sync-ping": {
-			if (this.role !== "leader") return;
-			const leaderReceiveTimeMs = _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this);
-			const leaderSendTimeMs = _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this);
-			_assertClassBrand(_WebRTCSyncController_brand, this, _send).call(this, {
-				type: "sync-pong",
-				id: message.id,
-				clientSendTimeMs: message.clientSendTimeMs,
-				leaderReceiveTimeMs,
-				leaderSendTimeMs
-			});
-			break;
-		}
-		case "sync-pong":
-			if (this.role !== "follower") return;
-			_classPrivateFieldGet2(_syncSession, this).addSample({
-				clientSendTimeMs: message.clientSendTimeMs,
-				leaderReceiveTimeMs: message.leaderReceiveTimeMs,
-				leaderSendTimeMs: message.leaderSendTimeMs,
-				clientReceiveTimeMs: _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this)
-			});
-			_assertClassBrand(_WebRTCSyncController_brand, this, _emitState).call(this);
-			if (_classPrivateFieldGet2(_leaderStartTimeMs, this) !== null && _classPrivateFieldGet2(_isFollowerRunning, this)) _assertClassBrand(_WebRTCSyncController_brand, this, _scheduleNextFollowerTick).call(this);
-			break;
-		case "prepare-start":
-			if (this.role !== "follower") return;
-			_classPrivateFieldSet2(_transportSnapshot, this, message.transport);
-			_classPrivateFieldSet2(_leaderStartTimeMs, this, message.leaderStartTimeMs);
-			_assertClassBrand(_WebRTCSyncController_brand, this, _prepareFollowerStart).call(this);
-			break;
-		case "heartbeat":
-			if (this.role !== "follower") return;
-			_classPrivateFieldSet2(_transportSnapshot, this, message.transport);
-			_classPrivateFieldSet2(_leaderStartTimeMs, this, message.leaderStartTimeMs);
-			if (_classPrivateFieldGet2(_isFollowerRunning, this)) _assertClassBrand(_WebRTCSyncController_brand, this, _scheduleNextFollowerTick).call(this, message.leaderNowMs);
-			break;
-		case "tempo-update":
-			if (this.role !== "follower") return;
-			_classPrivateFieldSet2(_transportSnapshot, this, message.transport);
-			this.timer.bars = message.transport.bars;
-			this.timer.divisions = message.transport.divisions;
-			this.timer.swing = message.transport.swing;
-			this.timer.BPM = message.transport.bpm;
-			if (_classPrivateFieldGet2(_isFollowerRunning, this)) {
-				const localEffectiveTime = _classPrivateFieldGet2(_syncSession, this).leaderToLocalTime(message.effectiveLeaderTimeMs);
-				globalThis.setTimeout(() => {
-					_assertClassBrand(_WebRTCSyncController_brand, this, _scheduleNextFollowerTick).call(this);
-				}, Math.max(0, localEffectiveTime - _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this)));
-			}
-			break;
-		case "stop":
-			this.stopSynchronized();
-			break;
-	}
-}
-async function _prepareFollowerStart() {
-	this.timer.bars = _classPrivateFieldGet2(_transportSnapshot, this).bars;
-	this.timer.divisions = _classPrivateFieldGet2(_transportSnapshot, this).divisions;
-	this.timer.swing = _classPrivateFieldGet2(_transportSnapshot, this).swing;
-	this.timer.BPM = _classPrivateFieldGet2(_transportSnapshot, this).bpm;
-	this.timer.bypass(true);
-	this.timer.resetTimer();
-	_classPrivateFieldSet2(_lastTriggeredTick, this, -1);
-	_classPrivateFieldSet2(_isFollowerRunning, this, true);
-	await this.timer.startTimer(this.timer.callback);
-	_assertClassBrand(_WebRTCSyncController_brand, this, _scheduleNextFollowerTick).call(this);
-}
-function _clearScheduledTick() {
-	if (_classPrivateFieldGet2(_scheduledTickTimeoutId, this)) {
-		clearTimeout(_classPrivateFieldGet2(_scheduledTickTimeoutId, this));
-		_classPrivateFieldSet2(_scheduledTickTimeoutId, this, null);
-	}
-}
-function _getTickDurationMs() {
-	return 6e4 / (_classPrivateFieldGet2(_transportSnapshot, this).bpm * _classPrivateFieldGet2(_transportSnapshot, this).divisions);
-}
-function _scheduleNextFollowerTick(leaderNowMs = _classPrivateFieldGet2(_syncSession, this).localToLeaderTime(_assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this))) {
-	if (!_classPrivateFieldGet2(_isFollowerRunning, this) || _classPrivateFieldGet2(_leaderStartTimeMs, this) === null) return;
-	_assertClassBrand(_WebRTCSyncController_brand, this, _clearScheduledTick).call(this);
-	const tickDurationMs = _assertClassBrand(_WebRTCSyncController_brand, this, _getTickDurationMs).call(this);
-	const leaderElapsedMs = leaderNowMs - _classPrivateFieldGet2(_leaderStartTimeMs, this);
-	const nextTickIndex = Math.max(_classPrivateFieldGet2(_lastTriggeredTick, this) + 1, leaderElapsedMs <= 0 ? 0 : Math.ceil(leaderElapsedMs / tickDurationMs));
-	const targetLeaderTimeMs = _classPrivateFieldGet2(_leaderStartTimeMs, this) + nextTickIndex * tickDurationMs;
-	const targetLocalTimeMs = _classPrivateFieldGet2(_syncSession, this).leaderToLocalTime(targetLeaderTimeMs);
-	const delayMs = Math.max(0, targetLocalTimeMs - _assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this));
-	_classPrivateFieldSet2(_scheduledTickTimeoutId, this, setTimeout(() => {
-		const actualLeaderTimeMs = _classPrivateFieldGet2(_syncSession, this).localToLeaderTime(_assertClassBrand(_WebRTCSyncController_brand, this, _nowMs).call(this));
-		const phaseErrorMs = actualLeaderTimeMs - targetLeaderTimeMs;
-		if (Math.abs(phaseErrorMs) > _classPrivateFieldGet2(_options, this).resyncThresholdMs) {
-			_assertClassBrand(_WebRTCSyncController_brand, this, _scheduleNextFollowerTick).call(this, actualLeaderTimeMs);
-			return;
-		}
-		_classPrivateFieldSet2(_lastTriggeredTick, this, nextTickIndex);
-		this.timer.externalTrigger(true);
-		_assertClassBrand(_WebRTCSyncController_brand, this, _scheduleNextFollowerTick).call(this);
-	}, delayMs));
-}
 var createWebRTCSyncController = (timer, options) => new WebRTCSyncController(timer, options);
 //#endregion
-export { AudioClock, AudioContextWorkerWrapper, AudioTimer, CMD_ADJUST_DRIFT, CMD_INITIALISE, CMD_START, CMD_STOP, CMD_UPDATE, DEFAULT_SYNC_OPTIONS, DEFAULT_SYNC_SESSION_SAMPLE_WINDOW, DEFAULT_TIMER_OPTIONS, EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK, MICROSECONDS_PER_MINUTE, RollingTimeWorkerWrapper, SECONDS_PER_MINUTE, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper, SyncSession, TIMER_TYPES, TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, TIMER_TYPE_OPTIONS, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, Ticks, Timer, WORKLET_TIMER_TYPES, WebRTCSyncController, convertBPMToPeriod, convertMIDIClockIntervalToBPM, convertPeriodToBPM, createTimer, createWebRTCSyncController, formatTimeStampFromSeconds, getTimer, getTimerTypeDescription, isValidTimerType, isWorkletTimerType, resetTimer, secondsToTicks, setTimeBetween, startTimer, stopTimer, tapTempo, tapTempoQuick };
+export { AudioClock, AudioContextWorkerWrapper, AudioTimer, CMD_ADJUST_DRIFT, CMD_INITIALISE, CMD_START, CMD_STOP, CMD_UPDATE, DEFAULT_SYNC_OPTIONS, DEFAULT_SYNC_SESSION_SAMPLE_WINDOW, DEFAULT_TIMER_OPTIONS, EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK, MICROSECONDS_PER_MINUTE, NetworkSession, RollingTimeWorkerWrapper, SECONDS_PER_MINUTE, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper, SyncSession, TIMER_TYPES, TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, TIMER_TYPE_OPTIONS, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, Ticks, Timer, WORKLET_TIMER_TYPES, WebRTCSyncController, convertBPMToPeriod, convertMIDIClockIntervalToBPM, convertPeriodToBPM, createTimer, createWebRTCSyncController, formatTimeStampFromSeconds, getTimer, getTimerTypeDescription, isNetworkTransport, isValidTimerType, isWorkletTimerType, networkTickTime, positionAt, resetTimer, secondsToTicks, setTimeBetween, startTimer, stopTimer, tapTempo, tapTempoQuick };
 
 //# sourceMappingURL=index.js.map

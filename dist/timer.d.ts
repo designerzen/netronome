@@ -1,4 +1,4 @@
-import type { AudioTickTiming, SyncMode, TimerSyncOptions, WorkerWrapper } from './timer-interfaces';
+import type { AudioTickTiming, SyncMode, TimerSyncOptions, TimerSyncMetadata, WorkerWrapper } from './timer-interfaces';
 import { TimerOptions } from './timer-options';
 import { type TimerType } from './timer-types';
 import type { ITimerControl, TimingHandler, TimerCallbackEvent } from './timer-interfaces';
@@ -35,6 +35,7 @@ export default class Timer {
     timingWorkHandler: TimingHandler;
     audioContext?: AudioContext;
     callback?: (event: TimerCallbackEvent) => void;
+    networkSync?: TimerSyncMetadata;
     loaded: Promise<void>;
     getNow: () => number;
     get options(): TimerOptions;
@@ -356,6 +357,8 @@ export default class Timer {
      * Repeat previous clock tick but do not advance
      */
     retrigger(): void;
+    /** Apply an absolute network pulse without deriving musical position from packet arrival. */
+    networkTick(tick: number, audioTiming: AudioTickTiming): void;
     /**
      * EVENT: Timer is available
      */

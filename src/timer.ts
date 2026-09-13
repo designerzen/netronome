@@ -10,7 +10,7 @@ import {
 
 import { tapTempoQuick } from './tap-tempo'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
-import type { AudioTickTiming, SyncMode, TimerSyncOptions, WorkerWrapper } from './timer-interfaces'
+import type { AudioTickTiming, SyncMode, TimerSyncOptions, TimerSyncMetadata, WorkerWrapper } from './timer-interfaces'
 
 import Epoch from './epoch'
 import { TimerOptions, DEFAULT_SYNC_OPTIONS, DEFAULT_TIMER_OPTIONS } from './timer-options'
@@ -140,6 +140,7 @@ export default class Timer {
     #synchronizationOffset: number = 0
 
     callback?: (event: TimerCallbackEvent) => void
+    networkSync?: TimerSyncMetadata
 
     // Promise to monitor for availability
     loaded: Promise<void>
@@ -677,6 +678,9 @@ export default class Timer {
         timePased: number,
         audioTiming: AudioTickTiming = {}
     ): void {
+        // A disconnected AudioWorklet can still deliver queued ticks and CMD_UPDATE
+        // can wake it again. External clocks must be the sole source of pulses.
+        if (this.#bypassed) return
         const timeBetweenPeriod = this.getCurrentPeriodInSeconds()
         // Expected time stamp
         const expected = this.getExpectedElapsed(intervals)
@@ -1258,6 +1262,17 @@ export default class Timer {
         // this.createTick( data.intervals, data.time )			
     }
 
+    /** Apply an absolute network pulse without deriving musical position from packet arrival. */
+    networkTick(tick: number, audioTiming: AudioTickTiming): void {
+        if (!this.#running || !this.#bypassed || !Number.isSafeInteger(tick) || tick < 0) return
+        this.divisionsElapsed = tick % this.divisions
+        this.totalBarsElapsed = Math.floor(tick / this.divisions)
+        this.currentBar = this.totalBarsElapsed % this.bars
+        this.lastRecordedExternalTime = this.now
+        const scheduled = audioTiming.scheduledContextTimeSeconds ?? this.now * this.clockUnitsToSecondsScale
+        this.onTick(scheduled, scheduled, 0, tick, tick, 0, false, audioTiming)
+    }
+
     // EVENTS =============================================================================
 
     /**
@@ -1319,7 +1334,7 @@ export default class Timer {
             intervals,
             lag,
             ...audioTiming,
-            sync: {
+            sync: this.networkSync ?? {
                 mode: this.syncMode,
                 status: this.usesNetworkSynchronization() ? 'probing' : (this.usesSynchronization() ? 'locked' : 'free'),
                 join: this.syncOptions.join,

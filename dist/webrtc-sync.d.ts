@@ -30,20 +30,32 @@ export interface WebRTCSyncState {
     jitterMs: number;
     locked: boolean;
 }
+/** Single-peer compatibility facade. Use NetworkSession for rooms and multiple transports. */
 export declare class WebRTCSyncController {
-    #private;
     readonly timer: Timer;
     readonly role: WebRTCSyncRole;
     onSignal?: (signal: WebRTCSyncSignal) => void;
     onStateChange?: (state: WebRTCSyncState) => void;
+    private pc;
+    private channel;
+    private session?;
+    private sessionReady?;
+    private candidates;
+    private destroyed;
+    private iceWaits;
+    private readonly options;
     constructor(timer: Timer, options: WebRTCSyncControllerOptions);
+    private peer;
+    private attach;
+    private ensureSession;
     start(): Promise<void>;
+    private gather;
     createOfferBundle(): Promise<WebRTCSessionBundle>;
-    createAnswerBundle(): Promise<WebRTCSessionBundle>;
     applyOfferBundle(bundle: WebRTCSessionBundle): Promise<void>;
+    createAnswerBundle(): Promise<WebRTCSessionBundle>;
     applyAnswerBundle(bundle: WebRTCSessionBundle): Promise<void>;
     handleSignal(signal: WebRTCSyncSignal): Promise<void>;
-    startSynchronized(lookaheadMs?: number): Promise<void>;
+    startSynchronized(lookaheadMs?: number | undefined): Promise<void>;
     stopSynchronized(): Promise<void>;
     broadcastTempoUpdate(effectiveLeaderTimeMs?: number): void;
     getState(): WebRTCSyncState;

@@ -22,7 +22,7 @@ export declare class SyncSession {
     constructor(sampleWindow?: number, minSamples?: number);
     addSample(input: PingSampleInput): SyncSample;
     clear(): void;
-    getEstimate(): SyncEstimate;
+    getEstimate(nowMs?: number): SyncEstimate;
     leaderToLocalTime(leaderTimeMs: number): number;
     localToLeaderTime(localTimeMs: number): number;
 }

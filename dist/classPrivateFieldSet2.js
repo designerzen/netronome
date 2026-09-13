@@ -35,6 +35,6 @@ function _classPrivateFieldSet2(s, a, r) {
 	return s.set(_assertClassBrand(s, a), r), r;
 }
 //#endregion
-export { _checkPrivateRedeclaration as a, CMD_START as c, EVENT_READY as d, EVENT_STARTING as f, _classPrivateFieldInitSpec as i, CMD_STOP as l, EVENT_TICK as m, _classPrivateFieldGet2 as n, CMD_ADJUST_DRIFT as o, EVENT_STOPPING as p, _assertClassBrand as r, CMD_INITIALISE as s, _classPrivateFieldSet2 as t, CMD_UPDATE as u };
+export { CMD_INITIALISE as a, CMD_UPDATE as c, EVENT_STOPPING as d, EVENT_TICK as f, CMD_ADJUST_DRIFT as i, EVENT_READY as l, _classPrivateFieldGet2 as n, CMD_START as o, _classPrivateFieldInitSpec as r, CMD_STOP as s, _classPrivateFieldSet2 as t, EVENT_STARTING as u };
 
 //# sourceMappingURL=classPrivateFieldSet2.js.map

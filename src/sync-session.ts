@@ -32,6 +32,11 @@ export class SyncSession {
     }
 
     addSample(input: PingSampleInput): SyncSample {
+        if (!Object.values(input).every(Number.isFinite)
+            || input.clientReceiveTimeMs < input.clientSendTimeMs
+            || input.leaderSendTimeMs < input.leaderReceiveTimeMs) {
+            throw new Error('Invalid clock sample')
+        }
         const rttMs = (input.clientReceiveTimeMs - input.clientSendTimeMs)
             - (input.leaderSendTimeMs - input.leaderReceiveTimeMs)
         const offsetMs = ((input.leaderReceiveTimeMs - input.clientSendTimeMs)
@@ -55,7 +60,7 @@ export class SyncSession {
         this.#samples = []
     }
 
-    getEstimate(): SyncEstimate {
+    getEstimate(nowMs?: number): SyncEstimate {
         if (this.#samples.length === 0) {
             return {
                 offsetMs: 0,
@@ -81,7 +86,8 @@ export class SyncSession {
             rttMs,
             jitterMs,
             sampleCount: this.#samples.length,
-            locked: this.#samples.length >= this.#minSamples
+            locked: this.#samples.length >= this.#minSamples && jitterMs <= 10 && rttMs <= 250
+                && (nowMs === undefined || nowMs - this.#samples[this.#samples.length - 1].receivedAtMs <= 3000)
         }
     }
 
