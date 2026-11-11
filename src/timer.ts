@@ -102,6 +102,10 @@ export const isFileWorklet = (file: string | TimerType): boolean => {
 
 export default class Timer {
 
+    #pausedAt: number | null = null
+    #resumeElapsed: number = 0
+    #workerElapsedOffset: number = 0
+
     startTime: number = -1
     period: number = 100
     
@@ -246,7 +250,7 @@ export default class Timer {
      */
     get timeElapsed(): number {
         // How long has elapsed according to audio context
-        return (this.now - this.startTime)// * 0.001 
+        return ((this.#pausedAt ?? this.now) - this.startTime)// * 0.001 
     }
 
     /**
@@ -637,7 +641,7 @@ export default class Timer {
             return this.#transportAnchorExpected
         }
 
-        const elapsedSinceAnchor = this.now - this.#transportAnchorClockTime
+        const elapsedSinceAnchor = (this.#pausedAt ?? this.now) - this.#transportAnchorClockTime
         if (elapsedSinceAnchor <= 0) {
             return this.#transportAnchorExpected
         }
@@ -685,7 +689,7 @@ export default class Timer {
         // Expected time stamp
         const expected = this.getExpectedElapsed(intervals)
         // How long has elapsed according to our worker
-        const timePassed = timePased
+        const timePassed = timePased + this.#workerElapsedOffset
         // how much spill over the expected timestamp is there
         const lag = this.swingOffset > 0 ? timePassed - expected : timePassed % timeBetweenPeriod
         // should be 0 if the timer is working...
@@ -931,9 +935,10 @@ export default class Timer {
 
                 case EVENT_STARTING:
                     // save start time
-                    this.startTime = time;
+                    this.startTime = time - this.#resumeElapsed;
+                    this.#pausedAt = null;
+                    this.#transportAnchorClockTime = time;
                     this.#running = true;
-                    this.resetTimer();
                     break;
 
                 case EVENT_TICK:
@@ -1003,7 +1008,6 @@ export default class Timer {
                     // destroy contexts and unsubscribe from events
                     if (setStopped) {
                         this.#running = false
-                        this.resetTransportTiming(this.now)
                     }
                     break
             }
@@ -1024,6 +1028,10 @@ export default class Timer {
         this.currentBar = 0
         this.totalBarsElapsed = 0
         this.divisionsElapsed = 0
+        this.startTime = this.now
+        this.#resumeElapsed = 0
+        this.#workerElapsedOffset = 0
+        this.#pausedAt = this.#running ? null : this.now
         this.resetTransportTiming()
     }
 
@@ -1066,9 +1074,15 @@ export default class Timer {
         const currentTime = this.now
 
         if (!this.#running) {
-            // FIXME: Alter this behaviour for rolling count
-            this.totalBarsElapsed = 0
-            this.resetTransportTiming(currentTime)
+            // Worker interval numbers restart, but the musical transport resumes.
+            this.#resumeElapsed = this.#pausedAt === null ? 0 : this.timeElapsed
+            const expected = this.#pausedAt === null ? 0 : this.getTransportElapsedNow()
+            this.#workerElapsedOffset = this.#resumeElapsed * (this.#clockTimeToElapsedScale || this.clockUnitsToSecondsScale)
+            this.#expectedAtTempoChange = expected
+            this.#intervalsAtTempoChange = 0
+            this.#lastTickIntervals = 0
+            this.#transportAnchorExpected = expected
+            this.#transportAnchorClockTime = currentTime
         }
 
         if (callback) {
@@ -1085,8 +1099,9 @@ export default class Timer {
         // if we are using an external clock
         // we try and determine the tempo ourselves
         if (this.#bypassed) {
+            this.startTime = currentTime - this.#resumeElapsed
+            this.#pausedAt = null
             this.#running = true
-            this.resetTransportTiming(currentTime)
             return {
                 time: currentTime,
                 interval: -1,
@@ -1123,6 +1138,11 @@ export default class Timer {
         await this.loaded
 
         const currentTime = this.now
+        if (this.#running) {
+            this.#pausedAt = currentTime
+            this.#resumeElapsed = this.timeElapsed
+        }
+        this.#running = false
         // cancel the thing thrugh the workers first
         // cancel any scheduled quie noises
         this.disconnectWorker(this.timingWorkHandler)

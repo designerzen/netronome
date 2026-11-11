@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import Timer from '../../src/timer'
-import { CMD_START, CMD_UPDATE, EVENT_STARTING } from '../../src/timer-event-types'
+import { CMD_START, CMD_UPDATE, EVENT_STARTING, EVENT_STOPPING } from '../../src/timer-event-types'
 
 type FakeWorker = {
   messages: Record<string, unknown>[]
@@ -27,7 +27,7 @@ const createFakeWorker = (): FakeWorker => {
   return worker
 }
 
-const setupRunningTimer = async (bpm: number) => {
+const setupRunningTimer = async (bpm: number, clockUnitsPerSecond = 1000) => {
   const timer = new Timer({ bpm }, false)
   await timer.loaded
 
@@ -36,6 +36,7 @@ const setupRunningTimer = async (bpm: number) => {
   const startTime = 1_000
   let now = startTime
 
+  Object.defineProperty(timer, 'clockUnitsToSecondsScale', { get: () => 1 / clockUnitsPerSecond })
   timer.getNow = () => now
   timer.timingWorkHandler = worker as any
 
@@ -48,7 +49,7 @@ const setupRunningTimer = async (bpm: number) => {
   worker.emit({ event: EVENT_STARTING })
 
   const emitTick = (intervals: number, timePassed: number) => {
-    now = startTime + timePassed * 1_000
+    now = startTime + timePassed * clockUnitsPerSecond
     timer.createTick(intervals, timePassed)
     return events.at(-1)
   }
@@ -127,5 +128,40 @@ describe('Timer live tempo changes', () => {
     expect(nextEvent?.expected - fastPeriod).toBeCloseTo(changeTransport, 9)
     expect(followingEvent?.expected - (nextEvent?.expected || 0)).toBeCloseTo(fastPeriod, 9)
     expect(nextEvent?.expected).toBeGreaterThan(events[4].expected)
+  })
+})
+
+
+describe('Timer pause and resume', () => {
+  it.each([1, 1000])('preserves paused position with %i clock units per second; reset alone rewinds', async (clockUnitsPerSecond) => {
+    const { timer, worker, emitTick, setNow, startTime } = await setupRunningTimer(120, clockUnitsPerSecond)
+    const period = timer.getCurrentPeriodInSeconds()
+    for (let tick = 0; tick < 30; tick++) emitTick(tick, tick * period)
+    for (let cycle = 0; cycle < 2; cycle++) {
+      const elapsed = timer.timeElapsed
+      const expected = timer.getTransportElapsedNow()
+      const position = [timer.currentBar, timer.totalBarsElapsed, timer.divisionsElapsed]
+      await timer.stop()
+      worker.emit({ event: EVENT_STOPPING })
+      setNow(startTime + 100_000 * (cycle + 1))
+      expect(timer.timeElapsed).toBe(elapsed)
+      expect(timer.getTransportElapsedNow()).toBeCloseTo(expected)
+      await timer.start()
+      worker.emit({ event: EVENT_STARTING })
+      expect(timer.timeElapsed).toBeCloseTo(elapsed)
+      expect([timer.currentBar, timer.totalBarsElapsed, timer.divisionsElapsed]).toEqual(position)
+      timer.createTick(0, 0)
+      expect(timer.getTransportElapsedNow()).toBeCloseTo(expected)
+    }
+    await timer.stop()
+    timer.resetTimer()
+    worker.emit({ event: EVENT_STOPPING })
+    expect(timer.timeElapsed).toBe(0)
+    expect([timer.currentBar, timer.totalBarsElapsed, timer.divisionsElapsed]).toEqual([0, 0, 0])
+    setNow(startTime + 300_000)
+    await timer.start()
+    worker.emit({ event: EVENT_STARTING })
+    expect(timer.timeElapsed).toBe(0)
+    expect(timer.getTransportElapsedNow()).toBe(0)
   })
 })

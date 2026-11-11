@@ -272,8 +272,6 @@ var ElasticTimingAudioWorkletNode = class extends AudioWorkletNode {
 					underruns: data.underruns ?? 0
 				});
 				if (this.onmetrics) this.onmetrics(_classPrivateFieldGet2(_metrics, this));
-				break;
-			default: break;
 		}
 		if (this.onmessage) this.onmessage(event);
 	}

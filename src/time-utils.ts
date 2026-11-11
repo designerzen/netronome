@@ -11,7 +11,6 @@ export const Ticks = {
     SemiQuaver: 960
 } as const
 
-
 /**
  * Convert a BPM to a period in ms
  * @param {Number|String} bpm beats per minute

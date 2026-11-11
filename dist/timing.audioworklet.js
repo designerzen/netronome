@@ -78,8 +78,7 @@ var TimingAudioWorkletNode = class extends AudioWorkletNode {
 	terminate() {}
 	onMessageReceived(event) {
 		switch (event.data.event) {
-			case EVENT_TICK: break;
-			default:
+			case EVENT_TICK:
 		}
 		if (this.onmessage) this.onmessage(event);
 	}

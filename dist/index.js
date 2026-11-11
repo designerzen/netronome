@@ -95,7 +95,7 @@ var tapTempo = (autoReset = true, timeOut = TAP_TIMEOUT, minimumTaps = MINIMUM_T
 //#endregion
 //#region src/time-utils.ts
 var SECONDS_PER_MINUTE = 60;
-var MICROSECONDS_PER_MINUTE = 60 * 1e3;
+var MICROSECONDS_PER_MINUTE = 6e4;
 var Ticks = {
 	/** How many ticks pass in "1 whole note" or 4x1/4th notes in a 4/4th beat, independent of tempo. */
 	SemiBreve: 15360,
@@ -350,6 +350,9 @@ var isFileWorklet = (file) => {
 	if (typeof normalized === "string" && normalized.indexOf("data:text/javascript;base64,") > -1) return true;
 	return false;
 };
+var _pausedAt = /* @__PURE__ */ new WeakMap();
+var _resumeElapsed = /* @__PURE__ */ new WeakMap();
+var _workerElapsedOffset = /* @__PURE__ */ new WeakMap();
 var _expectedAtTempoChange = /* @__PURE__ */ new WeakMap();
 var _intervalsAtTempoChange = /* @__PURE__ */ new WeakMap();
 var _lastTickIntervals = /* @__PURE__ */ new WeakMap();
@@ -443,7 +446,7 @@ var Timer = class {
 	* @returns number in seconds
 	*/
 	get timeElapsed() {
-		return this.now - this.startTime;
+		return (_classPrivateFieldGet2(_pausedAt, this) ?? this.now) - this.startTime;
 	}
 	/**
 	* Fetch whole loop length in milliseconds
@@ -631,6 +634,9 @@ var Timer = class {
 		this.swingOffset = Math.min(1, Math.max(0, value));
 	}
 	constructor(options = DEFAULT_TIMER_OPTIONS, isWorklet) {
+		_classPrivateFieldInitSpec(this, _pausedAt, void 0);
+		_classPrivateFieldInitSpec(this, _resumeElapsed, void 0);
+		_classPrivateFieldInitSpec(this, _workerElapsedOffset, void 0);
 		_classPrivateFieldInitSpec(this, _expectedAtTempoChange, void 0);
 		_classPrivateFieldInitSpec(this, _intervalsAtTempoChange, void 0);
 		_classPrivateFieldInitSpec(this, _lastTickIntervals, void 0);
@@ -643,6 +649,9 @@ var Timer = class {
 		_classPrivateFieldInitSpec(this, _options, void 0);
 		_classPrivateFieldInitSpec(this, _epoch, void 0);
 		_classPrivateFieldInitSpec(this, _synchronizationOffset, void 0);
+		_classPrivateFieldSet2(_pausedAt, this, null);
+		_classPrivateFieldSet2(_resumeElapsed, this, 0);
+		_classPrivateFieldSet2(_workerElapsedOffset, this, 0);
 		this.startTime = -1;
 		this.period = 100;
 		_classPrivateFieldSet2(_expectedAtTempoChange, this, 0);
@@ -767,7 +776,7 @@ var Timer = class {
 	}
 	getTransportElapsedNow() {
 		if (_classPrivateFieldGet2(_transportAnchorClockTime, this) < 0) return _classPrivateFieldGet2(_transportAnchorExpected, this);
-		const elapsedSinceAnchor = this.now - _classPrivateFieldGet2(_transportAnchorClockTime, this);
+		const elapsedSinceAnchor = (_classPrivateFieldGet2(_pausedAt, this) ?? this.now) - _classPrivateFieldGet2(_transportAnchorClockTime, this);
 		if (elapsedSinceAnchor <= 0) return _classPrivateFieldGet2(_transportAnchorExpected, this);
 		const scale = _classPrivateFieldGet2(_clockTimeToElapsedScale, this) || this.clockUnitsToSecondsScale;
 		return _classPrivateFieldGet2(_transportAnchorExpected, this) + Math.max(0, elapsedSinceAnchor * scale);
@@ -794,7 +803,7 @@ var Timer = class {
 		if (_classPrivateFieldGet2(_bypassed, this)) return;
 		const timeBetweenPeriod = this.getCurrentPeriodInSeconds();
 		const expected = this.getExpectedElapsed(intervals);
-		const timePassed = timePased;
+		const timePassed = timePased + _classPrivateFieldGet2(_workerElapsedOffset, this);
 		const lag = this.swingOffset > 0 ? timePassed - expected : timePassed % timeBetweenPeriod;
 		const drift = timePassed - this.timeElapsed;
 		const level = Math.floor(timePassed / this.timeBetween);
@@ -932,19 +941,17 @@ var Timer = class {
 			switch (data.event) {
 				case EVENT_READY: break;
 				case EVENT_STARTING:
-					this.startTime = time;
+					this.startTime = time - _classPrivateFieldGet2(_resumeElapsed, this);
+					_classPrivateFieldSet2(_pausedAt, this, null);
+					_classPrivateFieldSet2(_transportAnchorClockTime, this, time);
 					_classPrivateFieldSet2(_running, this, true);
-					this.resetTimer();
 					break;
-				case EVENT_TICK:
-					this.createTick(data.intervals, data.time, {
-						contextTimeSeconds: data.contextTimeSeconds,
-						scheduledContextTimeSeconds: data.scheduledContextTimeSeconds,
-						audioFrame: data.audioFrame,
-						sampleRate: data.sampleRate
-					});
-					break;
-				default:
+				case EVENT_TICK: this.createTick(data.intervals, data.time, {
+					contextTimeSeconds: data.contextTimeSeconds,
+					scheduledContextTimeSeconds: data.scheduledContextTimeSeconds,
+					audioFrame: data.audioFrame,
+					sampleRate: data.sampleRate
+				});
 			}
 		};
 		worker.onerror = (event) => {
@@ -971,12 +978,7 @@ var Timer = class {
 		if (!worker) return;
 		worker.onmessage = (e) => {
 			switch (e.data.event) {
-				case EVENT_STOPPING:
-					if (setStopped) {
-						_classPrivateFieldSet2(_running, this, false);
-						this.resetTransportTiming(this.now);
-					}
-					break;
+				case EVENT_STOPPING: if (setStopped) _classPrivateFieldSet2(_running, this, false);
 			}
 		};
 		worker.postMessage({
@@ -991,6 +993,10 @@ var Timer = class {
 		this.currentBar = 0;
 		this.totalBarsElapsed = 0;
 		this.divisionsElapsed = 0;
+		this.startTime = this.now;
+		_classPrivateFieldSet2(_resumeElapsed, this, 0);
+		_classPrivateFieldSet2(_workerElapsedOffset, this, 0);
+		_classPrivateFieldSet2(_pausedAt, this, _classPrivateFieldGet2(_running, this) ? null : this.now);
 		this.resetTransportTiming();
 	}
 	async start(callback) {
@@ -1026,15 +1032,22 @@ var Timer = class {
 		await this.loaded;
 		const currentTime = this.now;
 		if (!_classPrivateFieldGet2(_running, this)) {
-			this.totalBarsElapsed = 0;
-			this.resetTransportTiming(currentTime);
+			_classPrivateFieldSet2(_resumeElapsed, this, _classPrivateFieldGet2(_pausedAt, this) === null ? 0 : this.timeElapsed);
+			const expected = _classPrivateFieldGet2(_pausedAt, this) === null ? 0 : this.getTransportElapsedNow();
+			_classPrivateFieldSet2(_workerElapsedOffset, this, _classPrivateFieldGet2(_resumeElapsed, this) * (_classPrivateFieldGet2(_clockTimeToElapsedScale, this) || this.clockUnitsToSecondsScale));
+			_classPrivateFieldSet2(_expectedAtTempoChange, this, expected);
+			_classPrivateFieldSet2(_intervalsAtTempoChange, this, 0);
+			_classPrivateFieldSet2(_lastTickIntervals, this, 0);
+			_classPrivateFieldSet2(_transportAnchorExpected, this, expected);
+			_classPrivateFieldSet2(_transportAnchorClockTime, this, currentTime);
 		}
 		if (callback) this.setCallback(callback);
 		if (this.usesSynchronization()) _classPrivateFieldSet2(_synchronizationOffset, this, _classPrivateFieldGet2(_epoch, this).synchronizeMetronome(this.period));
 		else _classPrivateFieldSet2(_synchronizationOffset, this, 0);
 		if (_classPrivateFieldGet2(_bypassed, this)) {
+			this.startTime = currentTime - _classPrivateFieldGet2(_resumeElapsed, this);
+			_classPrivateFieldSet2(_pausedAt, this, null);
 			_classPrivateFieldSet2(_running, this, true);
-			this.resetTransportTiming(currentTime);
 			return {
 				time: currentTime,
 				interval: -1,
@@ -1063,6 +1076,11 @@ var Timer = class {
 	async stopTimer() {
 		await this.loaded;
 		const currentTime = this.now;
+		if (_classPrivateFieldGet2(_running, this)) {
+			_classPrivateFieldSet2(_pausedAt, this, currentTime);
+			_classPrivateFieldSet2(_resumeElapsed, this, this.timeElapsed);
+		}
+		_classPrivateFieldSet2(_running, this, false);
 		this.disconnectWorker(this.timingWorkHandler);
 		return {
 			currentTime,
@@ -1439,7 +1457,7 @@ var SyncSession = class {
 };
 //#endregion
 //#region src/worklets/network-timing-processor.js?raw
-var network_timing_processor_default = "// Shared transport anchors are converted to audio seconds before reaching this worklet.\nclass NetworkTimingProcessor extends AudioWorkletProcessor {\n    states = []\n    revision = -1\n    tick = -1\n    constructor() {\n        super()\n        this.port.onmessage = ({ data }) => {\n            if (data.type === 'clear') {\n                this.states = []\n                this.revision = -1\n                this.tick = -1\n            } else if (data.type === 'timeline') {\n                this.states = data.states\n            }\n        }\n    }\n    process() {\n        let state\n        for (const candidate of this.states) {\n            if (candidate.audioTime <= currentTime) state = candidate\n        }\n        if (!state) return true\n        const interval = 60 / (state.bpm * state.divisions)\n        if (this.revision !== state.revision) {\n            this.revision = state.revision\n            // Late joins skip elapsed ticks and retain absolute musical position.\n            this.tick = Math.max(Math.ceil(state.position * state.divisions - 1e-7),\n                Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1) - 1\n            this.port.postMessage({ state, scheduledContextTimeSeconds: state.audioTime + 0.1 })\n        }\n        if (!state.playing) return true\n        // A suspended context must never replay a backlog of musical events.\n        let next = Math.max(this.tick + 1,\n            Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1)\n        for (let count = 0; count < 4; count++, next++) {\n            const scheduled = state.audioTime + (next - state.position * state.divisions\n                + (next % 2 ? state.swing : 0)) * interval\n            if (scheduled > currentTime + 1e-7) break\n            this.tick = next\n            if (scheduled < currentTime - 256 / sampleRate) continue\n            this.port.postMessage({ state, tick: next, scheduledContextTimeSeconds: scheduled + 0.1,\n                contextTimeSeconds: currentTime, audioFrame: currentFrame, sampleRate })\n        }\n        return true\n    }\n}\nregisterProcessor('netronome-network-timing', NetworkTimingProcessor)\n";
+var network_timing_processor_default = "// Shared transport anchors are converted to audio seconds before reaching this worklet.\r\nclass NetworkTimingProcessor extends AudioWorkletProcessor {\r\n    states = []\r\n    revision = -1\r\n    tick = -1\r\n    constructor() {\r\n        super()\r\n        this.port.onmessage = ({ data }) => {\r\n            if (data.type === 'clear') {\r\n                this.states = []\r\n                this.revision = -1\r\n                this.tick = -1\r\n            } else if (data.type === 'timeline') {\r\n                this.states = data.states\r\n            }\r\n        }\r\n    }\r\n    process() {\r\n        let state\r\n        for (const candidate of this.states) {\r\n            if (candidate.audioTime <= currentTime) state = candidate\r\n        }\r\n        if (!state) return true\r\n        const interval = 60 / (state.bpm * state.divisions)\r\n        if (this.revision !== state.revision) {\r\n            this.revision = state.revision\r\n            // Late joins skip elapsed ticks and retain absolute musical position.\r\n            this.tick = Math.max(Math.ceil(state.position * state.divisions - 1e-7),\r\n                Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1) - 1\r\n            this.port.postMessage({ state, scheduledContextTimeSeconds: state.audioTime + 0.1 })\r\n        }\r\n        if (!state.playing) return true\r\n        // A suspended context must never replay a backlog of musical events.\r\n        let next = Math.max(this.tick + 1,\r\n            Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1)\r\n        for (let count = 0; count < 4; count++, next++) {\r\n            const scheduled = state.audioTime + (next - state.position * state.divisions\r\n                + (next % 2 ? state.swing : 0)) * interval\r\n            if (scheduled > currentTime + 1e-7) break\r\n            this.tick = next\r\n            if (scheduled < currentTime - 256 / sampleRate) continue\r\n            this.port.postMessage({ state, tick: next, scheduledContextTimeSeconds: scheduled + 0.1,\r\n                contextTimeSeconds: currentTime, audioFrame: currentFrame, sampleRate })\r\n        }\r\n        return true\r\n    }\r\n}\r\nregisterProcessor('netronome-network-timing', NetworkTimingProcessor)\r\n";
 //#endregion
 //#region src/network-audio-scheduler.ts
 var modules = /* @__PURE__ */ new WeakMap();
