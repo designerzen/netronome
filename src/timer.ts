@@ -1242,10 +1242,14 @@ export default class Timer {
      * Use an external device to send clock signals to and through this timer
      * such as the MIDI clock signal
      * @param advance whether to advance the divisions counter
+     * @param timestamp when the pulse happened, in this timer's clock units (defaults to now)
+     * @param audioTiming optional AudioContext timing of the pulse, forwarded to the tick callback
      */
-    externalTrigger(advance: boolean = true): void {
+    externalTrigger(advance: boolean = true, timestamp: number = this.now, audioTiming: AudioTickTiming = {}): void {
         // How long has elapsed according to our clock
-        const timestamp = this.now
+        if (!Number.isFinite(timestamp)) {
+            timestamp = this.now
+        }
         const previousRecordedExternalTime = this.lastRecordedExternalTime
         this.lastRecordedExternalTime = timestamp
 
@@ -1269,7 +1273,7 @@ export default class Timer {
         // console.log("MIDI CLOCK", BPM, period, elapsedSinceLastClock, timestamp )
 
         if (this.#running && this.#bypassed) {
-            this.onTick(elapsedSinceLastClock, expected, drift, level, this.divisionsElapsed, lag, advance)
+            this.onTick(elapsedSinceLastClock, expected, drift, level, this.divisionsElapsed, lag, advance, audioTiming)
         }
     }
 

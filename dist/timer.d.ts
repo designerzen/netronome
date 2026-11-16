@@ -351,8 +351,10 @@ export default class Timer {
      * Use an external device to send clock signals to and through this timer
      * such as the MIDI clock signal
      * @param advance whether to advance the divisions counter
+     * @param timestamp when the pulse happened, in this timer's clock units (defaults to now)
+     * @param audioTiming optional AudioContext timing of the pulse, forwarded to the tick callback
      */
-    externalTrigger(advance?: boolean): void;
+    externalTrigger(advance?: boolean, timestamp?: number, audioTiming?: AudioTickTiming): void;
     /**
      * Repeat previous clock tick but do not advance
      */

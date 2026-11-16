@@ -19,7 +19,7 @@ export declare const TIMER_TYPES: {
 };
 export declare const WORKLET_TIMER_TYPES: readonly ["audio-worklet", "elastic-audio-worklet"];
 export declare const TIMER_TYPE_OPTIONS: readonly ["audio-context", "audio-worklet", "elastic-audio-worklet", "rolling", "set-interval", "set-timeout"];
-export declare const isWorkletTimerType: (type: unknown) => type is (typeof WORKLET_TIMER_TYPES)[number];
+export declare const isWorkletTimerType: (type: unknown) => type is typeof WORKLET_TIMER_TYPES[number];
 export declare const isValidTimerType: (type: unknown) => type is TimerType;
 export declare const getTimerTypeDescription: (type: TimerType) => string;
 //# sourceMappingURL=timer-types.d.ts.map

@@ -512,6 +512,28 @@ describe('Timer Class', () => {
             expect(timer.divisionsElapsed).toBe(startDivisionsElapsed + 1)
         })
 
+        it('should time the pulse from a supplied timestamp and forward audio timing', () => {
+            timer.isRunning = true
+            timer.isBypassed = true
+            const events: any[] = []
+            timer.setCallback((event) => events.push(event))
+
+            timer.externalTrigger(true, 1000, { scheduledContextTimeSeconds: 1 })
+            timer.externalTrigger(true, 1020, { scheduledContextTimeSeconds: 1.02 })
+
+            expect(timer.lastRecordedExternalTime).toBe(1020)
+            expect(events[1].timePassed).toBeCloseTo(20 * timer.clockUnitsToSecondsScale, 10)
+            expect(events[1].scheduledContextTimeSeconds).toBe(1.02)
+        })
+
+        it('should fall back to now when the timestamp is omitted or invalid', () => {
+            timer.isRunning = true
+            timer.isBypassed = true
+            timer.externalTrigger(true, Number.NaN)
+            expect(Number.isFinite(timer.lastRecordedExternalTime)).toBe(true)
+            expect(timer.lastRecordedExternalTime).toBeGreaterThan(0)
+        })
+
         it('should support retrigger without advancing', () => {
             timer.isRunning = true
             timer.isBypassed = true

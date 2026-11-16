@@ -60,11 +60,11 @@ declare const getPanels: (width: number, height: number) => {
     error: Panel;
     jitter: Panel;
 };
-declare const getMetricSeries: (data: ChartDataPoint[], metric: "error" | "jitter") => number[];
-declare const getScaleMax: (payload: RenderPayload, metric: "error" | "jitter") => number;
+declare const getMetricSeries: (data: ChartDataPoint[], metric: 'error' | 'jitter') => number[];
+declare const getScaleMax: (payload: RenderPayload, metric: 'error' | 'jitter') => number;
 declare const summarizeTimer: (data: ChartDataPoint[]) => TimerMetrics;
 declare const drawPanelAxes: (ctx: OffscreenCanvasRenderingContext2D, width: number, panel: Panel, title: string, scaleMax: number, textColor: string, gridColor: string) => void;
-declare const drawTimerSeries: (ctx: OffscreenCanvasRenderingContext2D, data: ChartDataPoint[], panel: Panel, scaleMax: number, color: string, metric: "error" | "jitter") => void;
+declare const drawTimerSeries: (ctx: OffscreenCanvasRenderingContext2D, data: ChartDataPoint[], panel: Panel, scaleMax: number, color: string, metric: 'error' | 'jitter') => void;
 declare const drawLegend: (ctx: OffscreenCanvasRenderingContext2D, payload: RenderPayload, width: number, textColor: string) => void;
 declare const render: (payload: RenderPayload, isDark: boolean) => void;
 //# sourceMappingURL=performance-chart.worker.d.ts.map

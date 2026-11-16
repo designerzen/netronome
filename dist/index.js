@@ -1,5 +1,5 @@
 import { a as CMD_INITIALISE, c as CMD_UPDATE, d as EVENT_STOPPING, f as EVENT_TICK, i as CMD_ADJUST_DRIFT, l as EVENT_READY, n as _classPrivateFieldGet2, o as CMD_START, r as _classPrivateFieldInitSpec, s as CMD_STOP, t as _classPrivateFieldSet2, u as EVENT_STARTING } from "./classPrivateFieldSet2.js";
-//#region src/tap-tempo.ts
+// src/tap-tempo.ts
 /**
 * TODO: Implement lienar regression like nayuki
 * https://www.nayuki.io/page/tap-to-measure-tempo-javascript
@@ -92,8 +92,7 @@ var tapTempo = (autoReset = true, timeOut = TAP_TIMEOUT, minimumTaps = MINIMUM_T
 		};
 	};
 };
-//#endregion
-//#region src/time-utils.ts
+// src/time-utils.ts
 var SECONDS_PER_MINUTE = 60;
 var MICROSECONDS_PER_MINUTE = 6e4;
 var Ticks = {
@@ -230,8 +229,7 @@ var Epoch = class Epoch {
 		return Math.floor((time - this.referenceEpoch) / tickDuration);
 	}
 };
-//#endregion
-//#region src/timer-types.ts
+// src/timer-types.ts
 /**
 * Timer type constants for selecting which worker/worklet to use
 * Pass these string IDs to Timer constructor as the 'type' option
@@ -275,8 +273,7 @@ var getTimerTypeDescription = (type) => {
 		[TIMER_TYPE_SET_TIMEOUT]: "SetTimeout Worker"
 	}[type];
 };
-//#endregion
-//#region src/timer-options.ts
+// src/timer-options.ts
 var DEFAULT_SYNC_OPTIONS = {
 	mode: "local-grid",
 	join: "next-bar",
@@ -293,8 +290,7 @@ var DEFAULT_TIMER_OPTIONS = {
 	sync: DEFAULT_SYNC_OPTIONS,
 	synch: true
 };
-//#endregion
-//#region src/timer-worker-types.ts
+// src/timer-worker-types.ts
 var baseUrl = () => {
 	const url = import.meta.url;
 	return url.substring(0, url.lastIndexOf("/") + 1);
@@ -1154,9 +1150,11 @@ var Timer = class {
 	* Use an external device to send clock signals to and through this timer
 	* such as the MIDI clock signal
 	* @param advance whether to advance the divisions counter
+	* @param timestamp when the pulse happened, in this timer's clock units (defaults to now)
+	* @param audioTiming optional AudioContext timing of the pulse, forwarded to the tick callback
 	*/
-	externalTrigger(advance = true) {
-		const timestamp = this.now;
+	externalTrigger(advance = true, timestamp = this.now, audioTiming = {}) {
+		if (!Number.isFinite(timestamp)) timestamp = this.now;
 		const previousRecordedExternalTime = this.lastRecordedExternalTime;
 		this.lastRecordedExternalTime = timestamp;
 		const elapsedSinceLastClock = previousRecordedExternalTime > 0 ? (timestamp - previousRecordedExternalTime) * this.clockUnitsToSecondsScale : this.getCurrentPeriodInSeconds();
@@ -1165,7 +1163,7 @@ var Timer = class {
 		const lag = elapsedSinceLastClock > 0 ? elapsedTimestamp % elapsedSinceLastClock : 0;
 		const drift = elapsedTimestamp - expected;
 		const level = elapsedSinceLastClock > 0 ? Math.floor(elapsedTimestamp / elapsedSinceLastClock) : 0;
-		if (_classPrivateFieldGet2(_running, this) && _classPrivateFieldGet2(_bypassed, this)) this.onTick(elapsedSinceLastClock, expected, drift, level, this.divisionsElapsed, lag, advance);
+		if (_classPrivateFieldGet2(_running, this) && _classPrivateFieldGet2(_bypassed, this)) this.onTick(elapsedSinceLastClock, expected, drift, level, this.divisionsElapsed, lag, advance, audioTiming);
 	}
 	/**
 	* Repeat previous clock tick but do not advance
@@ -1224,8 +1222,7 @@ var Timer = class {
 		});
 	}
 };
-//#endregion
-//#region src/timer-global.ts
+// src/timer-global.ts
 /**
 * Public API wrapper for the Timer class
 */
@@ -1287,8 +1284,7 @@ function getTimer() {
 function createTimer(options = {}) {
 	return new Timer(options);
 }
-//#endregion
-//#region src/audio-clock.ts
+// src/audio-clock.ts
 /**
 * Keeps Web Audio's seconds-based rendering timeline separate from the
 * browser's milliseconds-based monotonic timeline, and provides the only
@@ -1335,8 +1331,7 @@ var AudioClock = class {
 		return timestamp.performanceTime + (audioTimeSeconds - timestamp.contextTime) * 1e3;
 	}
 };
-//#endregion
-//#region src/timer-audio.ts
+// src/timer-audio.ts
 var DEFAULT_AUDIO_TIMER_OPTIONS = { divisions: 24 };
 var AudioTimer = class extends Timer {
 	/**
@@ -1397,8 +1392,7 @@ var AudioTimer = class extends Timer {
 		return await super.startTimer(callback, options);
 	}
 };
-//#endregion
-//#region src/sync-session.ts
+// src/sync-session.ts
 var DEFAULT_SYNC_SESSION_SAMPLE_WINDOW = 16;
 var _samples = /* @__PURE__ */ new WeakMap();
 var _sampleWindow = /* @__PURE__ */ new WeakMap();
@@ -1455,11 +1449,9 @@ var SyncSession = class {
 		return localTimeMs + this.getEstimate().offsetMs;
 	}
 };
-//#endregion
-//#region src/worklets/network-timing-processor.js?raw
+// src/worklets/network-timing-processor.js?raw
 var network_timing_processor_default = "// Shared transport anchors are converted to audio seconds before reaching this worklet.\r\nclass NetworkTimingProcessor extends AudioWorkletProcessor {\r\n    states = []\r\n    revision = -1\r\n    tick = -1\r\n    constructor() {\r\n        super()\r\n        this.port.onmessage = ({ data }) => {\r\n            if (data.type === 'clear') {\r\n                this.states = []\r\n                this.revision = -1\r\n                this.tick = -1\r\n            } else if (data.type === 'timeline') {\r\n                this.states = data.states\r\n            }\r\n        }\r\n    }\r\n    process() {\r\n        let state\r\n        for (const candidate of this.states) {\r\n            if (candidate.audioTime <= currentTime) state = candidate\r\n        }\r\n        if (!state) return true\r\n        const interval = 60 / (state.bpm * state.divisions)\r\n        if (this.revision !== state.revision) {\r\n            this.revision = state.revision\r\n            // Late joins skip elapsed ticks and retain absolute musical position.\r\n            this.tick = Math.max(Math.ceil(state.position * state.divisions - 1e-7),\r\n                Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1) - 1\r\n            this.port.postMessage({ state, scheduledContextTimeSeconds: state.audioTime + 0.1 })\r\n        }\r\n        if (!state.playing) return true\r\n        // A suspended context must never replay a backlog of musical events.\r\n        let next = Math.max(this.tick + 1,\r\n            Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1)\r\n        for (let count = 0; count < 4; count++, next++) {\r\n            const scheduled = state.audioTime + (next - state.position * state.divisions\r\n                + (next % 2 ? state.swing : 0)) * interval\r\n            if (scheduled > currentTime + 1e-7) break\r\n            this.tick = next\r\n            if (scheduled < currentTime - 256 / sampleRate) continue\r\n            this.port.postMessage({ state, tick: next, scheduledContextTimeSeconds: scheduled + 0.1,\r\n                contextTimeSeconds: currentTime, audioFrame: currentFrame, sampleRate })\r\n        }\r\n        return true\r\n    }\r\n}\r\nregisterProcessor('netronome-network-timing', NetworkTimingProcessor)\r\n";
-//#endregion
-//#region src/network-audio-scheduler.ts
+// src/network-audio-scheduler.ts
 var modules = /* @__PURE__ */ new WeakMap();
 async function createNetworkAudioScheduler(timer, onTransport) {
 	const context = timer.audioContext;
@@ -1516,14 +1508,12 @@ async function createNetworkAudioScheduler(timer, onTransport) {
 		}
 	};
 }
-//#endregion
-//#region src/network-timeline.ts
+// src/network-timeline.ts
 var isNetworkTransport = (value) => Boolean(value && Number.isSafeInteger(value.revision) && value.revision >= 0 && typeof value.playing === "boolean" && Number.isFinite(value.timestamp) && Number.isFinite(value.position) && value.position >= 0 && Number.isFinite(value.bpm) && value.bpm >= 10 && value.bpm <= 300 && Number.isFinite(value.swing) && value.swing >= 0 && value.swing <= 1 && Number.isInteger(value.divisions) && value.divisions >= 1 && value.divisions <= 96 && Number.isInteger(value.bars) && value.bars >= 1 && value.bars <= 32);
 var positionAt = (state, timestamp) => state.position + (state.playing ? Math.max(0, timestamp - state.timestamp) * state.bpm / 6e4 : 0);
 /** Match Timer's swing convention: delay odd divisions by a fraction of one division. */
 var networkTickTime = (state, tick) => state.timestamp + (tick / state.divisions - state.position + (tick % 2 ? state.swing / state.divisions : 0)) * 6e4 / state.bpm;
-//#endregion
-//#region src/network-session.ts
+// src/network-session.ts
 /** One transport and one audio scheduler per machine, independent of WS/WebRTC routing. */
 var NetworkSession = class {
 	constructor(timer, options) {
@@ -1766,8 +1756,7 @@ var NetworkSession = class {
 		this.ready = false;
 	}
 };
-//#endregion
-//#region src/webrtc-sync.ts
+// src/webrtc-sync.ts
 /** Single-peer compatibility facade. Use NetworkSession for rooms and multiple transports. */
 var WebRTCSyncController = class {
 	constructor(timer, options) {
@@ -1959,7 +1948,6 @@ var WebRTCSyncController = class {
 	}
 };
 var createWebRTCSyncController = (timer, options) => new WebRTCSyncController(timer, options);
-//#endregion
 export { AudioClock, AudioContextWorkerWrapper, AudioTimer, CMD_ADJUST_DRIFT, CMD_INITIALISE, CMD_START, CMD_STOP, CMD_UPDATE, DEFAULT_SYNC_OPTIONS, DEFAULT_SYNC_SESSION_SAMPLE_WINDOW, DEFAULT_TIMER_OPTIONS, EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK, MICROSECONDS_PER_MINUTE, NetworkSession, RollingTimeWorkerWrapper, SECONDS_PER_MINUTE, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper, SyncSession, TIMER_TYPES, TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, TIMER_TYPE_OPTIONS, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, Ticks, Timer, WORKLET_TIMER_TYPES, WebRTCSyncController, convertBPMToPeriod, convertMIDIClockIntervalToBPM, convertPeriodToBPM, createTimer, createWebRTCSyncController, formatTimeStampFromSeconds, getTimer, getTimerTypeDescription, isNetworkTransport, isValidTimerType, isWorkletTimerType, networkTickTime, positionAt, resetTimer, secondsToTicks, setTimeBetween, startTimer, stopTimer, tapTempo, tapTempoQuick };
 
 //# sourceMappingURL=index.js.map

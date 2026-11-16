@@ -1,5 +1,5 @@
 import { a as CMD_INITIALISE, c as CMD_UPDATE, f as EVENT_TICK, i as CMD_ADJUST_DRIFT, n as _classPrivateFieldGet2, o as CMD_START, r as _classPrivateFieldInitSpec, s as CMD_STOP, t as _classPrivateFieldSet2 } from "./classPrivateFieldSet2.js";
-//#region src/worklets/elastic-timing.audioworklet.ts
+// src/worklets/elastic-timing.audioworklet.ts
 var processorURL = null;
 var getProcessorURL = async () => {
 	if (processorURL) return processorURL;
@@ -276,7 +276,6 @@ var ElasticTimingAudioWorkletNode = class extends AudioWorkletNode {
 		if (this.onmessage) this.onmessage(event);
 	}
 };
-//#endregion
 export { createElasticTimingWorklet };
 
 //# sourceMappingURL=elastic-timing.audioworklet.js.map
