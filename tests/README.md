@@ -369,4 +369,4 @@ When adding features:
 
 ---
 
-For questions, see [VITE_SETUP.md](../VITE_SETUP.md#writing-tests)
+For setup and supported commands, see the [package README](../readme.md#demo-and-development) and [package manifest](../package.json).
