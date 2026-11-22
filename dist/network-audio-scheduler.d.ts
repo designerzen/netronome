@@ -1,7 +1,8 @@
 import type Timer from './timer';
 import type { NetworkTransport } from './network-timeline';
 export interface NetworkScheduler {
-    setTimeline(states: NetworkTransport[], offsetMs: number): void;
+    /** latencyMs plays everything that much earlier, for output delay the browser cannot see. */
+    setTimeline(states: NetworkTransport[], offsetMs: number, latencyMs?: number): void;
     clear(): void;
     destroy(): void;
 }

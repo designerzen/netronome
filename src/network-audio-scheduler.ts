@@ -4,12 +4,15 @@ import PROCESSOR_CODE from './worklets/network-timing-processor.js?raw'
 import AudioClock from './audio-clock'
 
 export interface NetworkScheduler {
-    setTimeline(states: NetworkTransport[], offsetMs: number): void
+    /** latencyMs plays everything that much earlier, for output delay the browser cannot see. */
+    setTimeline(states: NetworkTransport[], offsetMs: number, latencyMs?: number): void
     clear(): void
     destroy(): void
 }
 
 const modules = new WeakMap<AudioContext, Promise<void>>()
+const ORIGIN_SAMPLES = 9
+const ORIGIN_JUMP_CONFIRMATIONS = 3
 
 export async function createNetworkAudioScheduler(timer: Timer, onTransport: (state: NetworkTransport) => void): Promise<NetworkScheduler> {
     const context = timer.audioContext
@@ -28,6 +31,10 @@ export async function createNetworkAudioScheduler(timer: Timer, onTransport: (st
     let alive = true
     let enabled = false
     let revisions = new Set<number>()
+    // Output timestamps jitter by a render quantum; a running median keeps
+    // that out of tick times while still following audio clock drift.
+    let origins: number[] = []
+    let jumps: number[] = []
     node.port.onmessage = ({ data }) => {
         if (!alive || !enabled || !timer.isUsingExternalTrigger) return
         if (!revisions.has(data.state?.revision)) return
@@ -37,14 +44,25 @@ export async function createNetworkAudioScheduler(timer: Timer, onTransport: (st
         if (data.tick !== undefined) timer.networkTick(data.tick, data)
     }
     return {
-        setTimeline(states, offsetMs) {
+        setTimeline(states, offsetMs, latencyMs = 0) {
             if (!alive) return
             enabled = true
             revisions = new Set(states.map(state => state.revision))
             const pair = audioClock.getTimestampPair()
-            const audioOrigin = pair.contextTime - pair.performanceTime / 1000
+            const origin = pair.contextTime - pair.performanceTime / 1000
+            const median = () => [...origins].sort((a, b) => a - b)[Math.floor(origins.length / 2)]
+            // A suspended and resumed context moves the origin for real, but one
+            // stalled reading does not: start over only once the jump repeats.
+            if (origins.length && Math.abs(median() - origin) > 0.05) {
+                jumps.push(origin)
+                if (jumps.length >= ORIGIN_JUMP_CONFIRMATIONS) { origins = jumps; jumps = [] }
+            } else {
+                jumps = []
+                origins = [...origins, origin].slice(-ORIGIN_SAMPLES)
+            }
+            const audioOrigin = median()
             node.port.postMessage({ type: 'timeline', states: states.map(state => ({
-                ...state, audioTime: audioOrigin + (state.timestamp - offsetMs) / 1000 - 0.1
+                ...state, audioTime: audioOrigin + (state.timestamp - offsetMs - latencyMs) / 1000 - 0.1
             })) })
         },
         clear() { enabled = false; node.port.postMessage({ type: 'clear' }) },

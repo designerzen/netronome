@@ -8,7 +8,14 @@ export interface NetworkTransport {
     swing: number
     divisions: number
     bars: number
+    /** Beats per bar; transport changes land on multiples of it. Absent means 4. */
+    quantum?: number
 }
+
+export const DEFAULT_QUANTUM = 4
+
+export const isQuantum = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 64
 
 export const isNetworkTransport = (value: any): value is NetworkTransport => Boolean(value
     && Number.isSafeInteger(value.revision) && value.revision >= 0
@@ -18,7 +25,8 @@ export const isNetworkTransport = (value: any): value is NetworkTransport => Boo
     && Number.isFinite(value.bpm) && value.bpm >= 10 && value.bpm <= 300
     && Number.isFinite(value.swing) && value.swing >= 0 && value.swing <= 1
     && Number.isInteger(value.divisions) && value.divisions >= 1 && value.divisions <= 96
-    && Number.isInteger(value.bars) && value.bars >= 1 && value.bars <= 32)
+    && Number.isInteger(value.bars) && value.bars >= 1 && value.bars <= 32
+    && (value.quantum === undefined || isQuantum(value.quantum)))
 
 export const positionAt = (state: NetworkTransport, timestamp: number): number =>
     state.position + (state.playing ? Math.max(0, timestamp - state.timestamp) * state.bpm / 60000 : 0)

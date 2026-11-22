@@ -1,4 +1,4 @@
-import { a as CMD_INITIALISE, c as CMD_UPDATE, d as EVENT_STOPPING, f as EVENT_TICK, i as CMD_ADJUST_DRIFT, l as EVENT_READY, n as _classPrivateFieldGet2, o as CMD_START, r as _classPrivateFieldInitSpec, s as CMD_STOP, t as _classPrivateFieldSet2, u as EVENT_STARTING } from "./classPrivateFieldSet2.js";
+import { a as _checkPrivateRedeclaration, c as CMD_START, d as EVENT_READY, f as EVENT_STARTING, i as _classPrivateFieldInitSpec, l as CMD_STOP, m as EVENT_TICK, n as _classPrivateFieldGet2, o as CMD_ADJUST_DRIFT, p as EVENT_STOPPING, r as _assertClassBrand, s as CMD_INITIALISE, t as _classPrivateFieldSet2, u as CMD_UPDATE } from "./classPrivateFieldSet2.js";
 // src/tap-tempo.ts
 /**
 * TODO: Implement lienar regression like nayuki
@@ -1392,67 +1392,135 @@ var AudioTimer = class extends Timer {
 		return await super.startTimer(callback, options);
 	}
 };
+// \0@oxc-project+runtime@0.156.0/helpers/esm/classPrivateMethodInitSpec.js
+function _classPrivateMethodInitSpec(e, a) {
+	_checkPrivateRedeclaration(e, a), a.add(e);
+}
 // src/sync-session.ts
-var DEFAULT_SYNC_SESSION_SAMPLE_WINDOW = 16;
+/** About one minute of history at the default 250 ms ping interval. */
+var DEFAULT_SYNC_SESSION_SAMPLE_WINDOW = 240;
+/** Shorter spans cannot separate crystal drift from network noise. */
+var MIN_DRIFT_SPAN_MS = 1e4;
+/** Real oscillators stay within a few hundred ppm; anything larger is noise. */
+var MAX_DRIFT = 5e-4;
+var STEP_THRESHOLD_MS = 20;
+var STEP_CONFIRMATIONS = 3;
 var _samples = /* @__PURE__ */ new WeakMap();
+var _suspects = /* @__PURE__ */ new WeakMap();
 var _sampleWindow = /* @__PURE__ */ new WeakMap();
 var _minSamples = /* @__PURE__ */ new WeakMap();
+var _fit = /* @__PURE__ */ new WeakMap();
+var _SyncSession_brand = /* @__PURE__ */ new WeakSet();
+/**
+* Estimates a leader clock as a line (offset plus drift) through the
+* fastest round trips, so the estimate stays accurate between pings and a
+* long window averages out network noise without lagging behind drift.
+*/
 var SyncSession = class {
-	constructor(sampleWindow = 16, minSamples = 4) {
+	constructor(sampleWindow = 240, minSamples = 4) {
+		_classPrivateMethodInitSpec(this, _SyncSession_brand);
 		_classPrivateFieldInitSpec(this, _samples, []);
+		_classPrivateFieldInitSpec(this, _suspects, []);
 		_classPrivateFieldInitSpec(this, _sampleWindow, void 0);
 		_classPrivateFieldInitSpec(this, _minSamples, void 0);
+		_classPrivateFieldInitSpec(this, _fit, void 0);
 		_classPrivateFieldSet2(_sampleWindow, this, Math.max(3, sampleWindow));
 		_classPrivateFieldSet2(_minSamples, this, Math.max(1, minSamples));
 	}
 	addSample(input) {
 		if (!Object.values(input).every(Number.isFinite) || input.clientReceiveTimeMs < input.clientSendTimeMs || input.leaderSendTimeMs < input.leaderReceiveTimeMs) throw new Error("Invalid clock sample");
 		const rttMs = input.clientReceiveTimeMs - input.clientSendTimeMs - (input.leaderSendTimeMs - input.leaderReceiveTimeMs);
+		const offsetMs = (input.leaderReceiveTimeMs - input.clientSendTimeMs + (input.leaderSendTimeMs - input.clientReceiveTimeMs)) / 2;
 		const sample = {
-			offsetMs: (input.leaderReceiveTimeMs - input.clientSendTimeMs + (input.leaderSendTimeMs - input.clientReceiveTimeMs)) / 2,
+			offsetMs,
 			rttMs: Math.max(0, rttMs),
 			receivedAtMs: input.clientReceiveTimeMs
 		};
-		_classPrivateFieldGet2(_samples, this).push(sample);
-		if (_classPrivateFieldGet2(_samples, this).length > _classPrivateFieldGet2(_sampleWindow, this)) _classPrivateFieldGet2(_samples, this).shift();
+		const fit = _classPrivateFieldGet2(_samples, this).length >= _classPrivateFieldGet2(_minSamples, this) ? _assertClassBrand(_SyncSession_brand, this, _getFit).call(this) : void 0;
+		const deviation = fit ? Math.abs(offsetMs - _assertClassBrand(_SyncSession_brand, this, _offsetAt).call(this, fit, sample.receivedAtMs)) : 0;
+		if (fit && deviation > Math.max(STEP_THRESHOLD_MS, fit.jitterMs * 4) + sample.rttMs / 2) {
+			_classPrivateFieldGet2(_suspects, this).push(sample);
+			if (_classPrivateFieldGet2(_suspects, this).length < STEP_CONFIRMATIONS) return sample;
+			_classPrivateFieldSet2(_samples, this, _classPrivateFieldGet2(_suspects, this));
+			_classPrivateFieldSet2(_suspects, this, []);
+		} else {
+			_classPrivateFieldSet2(_suspects, this, []);
+			_classPrivateFieldGet2(_samples, this).push(sample);
+			if (_classPrivateFieldGet2(_samples, this).length > _classPrivateFieldGet2(_sampleWindow, this)) _classPrivateFieldGet2(_samples, this).shift();
+		}
+		_classPrivateFieldSet2(_fit, this, void 0);
 		return sample;
 	}
 	clear() {
 		_classPrivateFieldSet2(_samples, this, []);
+		_classPrivateFieldSet2(_suspects, this, []);
+		_classPrivateFieldSet2(_fit, this, void 0);
 	}
 	getEstimate(nowMs) {
 		if (_classPrivateFieldGet2(_samples, this).length === 0) return {
 			offsetMs: 0,
 			rttMs: 0,
 			jitterMs: 0,
+			driftPpm: 0,
 			sampleCount: 0,
 			locked: false
 		};
-		const sortedByRtt = [..._classPrivateFieldGet2(_samples, this)].sort((a, b) => a.rttMs - b.rttMs);
-		const sliceLength = Math.max(1, Math.ceil(sortedByRtt.length / 2));
-		const bestSamples = sortedByRtt.slice(0, sliceLength);
-		const offsetMs = bestSamples.reduce((sum, sample) => sum + sample.offsetMs, 0) / bestSamples.length;
-		const rttMs = bestSamples.reduce((sum, sample) => sum + sample.rttMs, 0) / bestSamples.length;
-		const jitterMs = Math.sqrt(bestSamples.reduce((sum, sample) => sum + Math.pow(sample.offsetMs - offsetMs, 2), 0) / bestSamples.length);
+		const fit = _assertClassBrand(_SyncSession_brand, this, _getFit).call(this);
+		const latest = _classPrivateFieldGet2(_samples, this)[_classPrivateFieldGet2(_samples, this).length - 1].receivedAtMs;
 		return {
-			offsetMs,
-			rttMs,
-			jitterMs,
+			offsetMs: _assertClassBrand(_SyncSession_brand, this, _offsetAt).call(this, fit, nowMs ?? latest),
+			rttMs: fit.rttMs,
+			jitterMs: fit.jitterMs,
+			driftPpm: fit.slope * 1e6,
 			sampleCount: _classPrivateFieldGet2(_samples, this).length,
-			locked: _classPrivateFieldGet2(_samples, this).length >= _classPrivateFieldGet2(_minSamples, this) && jitterMs <= 10 && rttMs <= 250 && (nowMs === void 0 || nowMs - _classPrivateFieldGet2(_samples, this)[_classPrivateFieldGet2(_samples, this).length - 1].receivedAtMs <= 3e3)
+			locked: _classPrivateFieldGet2(_samples, this).length >= _classPrivateFieldGet2(_minSamples, this) && fit.jitterMs <= 10 && fit.rttMs <= 250 && (nowMs === void 0 || nowMs - latest <= 3e3)
 		};
 	}
 	leaderToLocalTime(leaderTimeMs) {
-		return leaderTimeMs - this.getEstimate().offsetMs;
+		if (_classPrivateFieldGet2(_samples, this).length === 0) return leaderTimeMs;
+		const fit = _assertClassBrand(_SyncSession_brand, this, _getFit).call(this);
+		const guess = leaderTimeMs - _assertClassBrand(_SyncSession_brand, this, _offsetAt).call(this, fit, leaderTimeMs);
+		return leaderTimeMs - _assertClassBrand(_SyncSession_brand, this, _offsetAt).call(this, fit, guess);
 	}
 	localToLeaderTime(localTimeMs) {
-		return localTimeMs + this.getEstimate().offsetMs;
+		if (_classPrivateFieldGet2(_samples, this).length === 0) return localTimeMs;
+		return localTimeMs + _assertClassBrand(_SyncSession_brand, this, _offsetAt).call(this, _assertClassBrand(_SyncSession_brand, this, _getFit).call(this), localTimeMs);
 	}
 };
+function _offsetAt(fit, localTimeMs) {
+	return fit.centreOffsetMs + fit.slope * (localTimeMs - fit.centreTimeMs);
+}
+function _getFit() {
+	if (_classPrivateFieldGet2(_fit, this)) return _classPrivateFieldGet2(_fit, this);
+	const sortedByRtt = [..._classPrivateFieldGet2(_samples, this)].sort((a, b) => a.rttMs - b.rttMs);
+	const best = sortedByRtt.slice(0, Math.max(1, Math.ceil(sortedByRtt.length / 2)));
+	const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+	const centreTimeMs = mean(best.map((sample) => sample.receivedAtMs));
+	const centreOffsetMs = mean(best.map((sample) => sample.offsetMs));
+	const times = best.map((sample) => sample.receivedAtMs);
+	let slope = 0;
+	if (best.length >= 8 && Math.max(...times) - Math.min(...times) >= MIN_DRIFT_SPAN_MS) {
+		const spread = best.reduce((sum, sample) => sum + (sample.receivedAtMs - centreTimeMs) ** 2, 0);
+		const covariance = best.reduce((sum, sample) => sum + (sample.receivedAtMs - centreTimeMs) * (sample.offsetMs - centreOffsetMs), 0);
+		slope = Math.min(MAX_DRIFT, Math.max(-5e-4, covariance / spread));
+	}
+	const line = {
+		centreTimeMs,
+		centreOffsetMs,
+		slope,
+		rttMs: 0,
+		jitterMs: 0
+	};
+	line.rttMs = mean(best.map((sample) => sample.rttMs));
+	line.jitterMs = Math.sqrt(mean(best.map((sample) => (sample.offsetMs - _assertClassBrand(_SyncSession_brand, this, _offsetAt).call(this, line, sample.receivedAtMs)) ** 2)));
+	_classPrivateFieldSet2(_fit, this, line);
+	return line;
+}
 // src/worklets/network-timing-processor.js?raw
 var network_timing_processor_default = "// Shared transport anchors are converted to audio seconds before reaching this worklet.\r\nclass NetworkTimingProcessor extends AudioWorkletProcessor {\r\n    states = []\r\n    revision = -1\r\n    tick = -1\r\n    constructor() {\r\n        super()\r\n        this.port.onmessage = ({ data }) => {\r\n            if (data.type === 'clear') {\r\n                this.states = []\r\n                this.revision = -1\r\n                this.tick = -1\r\n            } else if (data.type === 'timeline') {\r\n                this.states = data.states\r\n            }\r\n        }\r\n    }\r\n    process() {\r\n        let state\r\n        for (const candidate of this.states) {\r\n            if (candidate.audioTime <= currentTime) state = candidate\r\n        }\r\n        if (!state) return true\r\n        const interval = 60 / (state.bpm * state.divisions)\r\n        if (this.revision !== state.revision) {\r\n            this.revision = state.revision\r\n            // Late joins skip elapsed ticks and retain absolute musical position.\r\n            this.tick = Math.max(Math.ceil(state.position * state.divisions - 1e-7),\r\n                Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1) - 1\r\n            this.port.postMessage({ state, scheduledContextTimeSeconds: state.audioTime + 0.1 })\r\n        }\r\n        if (!state.playing) return true\r\n        // A suspended context must never replay a backlog of musical events.\r\n        let next = Math.max(this.tick + 1,\r\n            Math.floor(state.position * state.divisions + (currentTime - state.audioTime) / interval) - 1)\r\n        for (let count = 0; count < 4; count++, next++) {\r\n            const scheduled = state.audioTime + (next - state.position * state.divisions\r\n                + (next % 2 ? state.swing : 0)) * interval\r\n            if (scheduled > currentTime + 1e-7) break\r\n            this.tick = next\r\n            if (scheduled < currentTime - 256 / sampleRate) continue\r\n            this.port.postMessage({ state, tick: next, scheduledContextTimeSeconds: scheduled + 0.1,\r\n                contextTimeSeconds: currentTime, audioFrame: currentFrame, sampleRate })\r\n        }\r\n        return true\r\n    }\r\n}\r\nregisterProcessor('netronome-network-timing', NetworkTimingProcessor)\r\n";
 // src/network-audio-scheduler.ts
 var modules = /* @__PURE__ */ new WeakMap();
+var ORIGIN_JUMP_CONFIRMATIONS = 3;
 async function createNetworkAudioScheduler(timer, onTransport) {
 	const context = timer.audioContext;
 	if (!context?.audioWorklet) throw new Error("Network timing requires an AudioWorklet-capable audio context");
@@ -1473,6 +1541,8 @@ async function createNetworkAudioScheduler(timer, onTransport) {
 	let alive = true;
 	let enabled = false;
 	let revisions = /* @__PURE__ */ new Set();
+	let origins = [];
+	let jumps = [];
 	node.port.onmessage = ({ data }) => {
 		if (!alive || !enabled || !timer.isUsingExternalTrigger) return;
 		if (!revisions.has(data.state?.revision)) return;
@@ -1481,17 +1551,29 @@ async function createNetworkAudioScheduler(timer, onTransport) {
 		if (data.tick !== void 0) timer.networkTick(data.tick, data);
 	};
 	return {
-		setTimeline(states, offsetMs) {
+		setTimeline(states, offsetMs, latencyMs = 0) {
 			if (!alive) return;
 			enabled = true;
 			revisions = new Set(states.map((state) => state.revision));
 			const pair = audioClock.getTimestampPair();
-			const audioOrigin = pair.contextTime - pair.performanceTime / 1e3;
+			const origin = pair.contextTime - pair.performanceTime / 1e3;
+			const median = () => [...origins].sort((a, b) => a - b)[Math.floor(origins.length / 2)];
+			if (origins.length && Math.abs(median() - origin) > .05) {
+				jumps.push(origin);
+				if (jumps.length >= ORIGIN_JUMP_CONFIRMATIONS) {
+					origins = jumps;
+					jumps = [];
+				}
+			} else {
+				jumps = [];
+				origins = [...origins, origin].slice(-9);
+			}
+			const audioOrigin = median();
 			node.port.postMessage({
 				type: "timeline",
 				states: states.map((state) => ({
 					...state,
-					audioTime: audioOrigin + (state.timestamp - offsetMs) / 1e3 - .1
+					audioTime: audioOrigin + (state.timestamp - offsetMs - latencyMs) / 1e3 - .1
 				}))
 			});
 		},
@@ -1509,11 +1591,15 @@ async function createNetworkAudioScheduler(timer, onTransport) {
 	};
 }
 // src/network-timeline.ts
-var isNetworkTransport = (value) => Boolean(value && Number.isSafeInteger(value.revision) && value.revision >= 0 && typeof value.playing === "boolean" && Number.isFinite(value.timestamp) && Number.isFinite(value.position) && value.position >= 0 && Number.isFinite(value.bpm) && value.bpm >= 10 && value.bpm <= 300 && Number.isFinite(value.swing) && value.swing >= 0 && value.swing <= 1 && Number.isInteger(value.divisions) && value.divisions >= 1 && value.divisions <= 96 && Number.isInteger(value.bars) && value.bars >= 1 && value.bars <= 32);
+var DEFAULT_QUANTUM = 4;
+var isQuantum = (value) => typeof value === "number" && Number.isFinite(value) && value > 0 && value <= 64;
+var isNetworkTransport = (value) => Boolean(value && Number.isSafeInteger(value.revision) && value.revision >= 0 && typeof value.playing === "boolean" && Number.isFinite(value.timestamp) && Number.isFinite(value.position) && value.position >= 0 && Number.isFinite(value.bpm) && value.bpm >= 10 && value.bpm <= 300 && Number.isFinite(value.swing) && value.swing >= 0 && value.swing <= 1 && Number.isInteger(value.divisions) && value.divisions >= 1 && value.divisions <= 96 && Number.isInteger(value.bars) && value.bars >= 1 && value.bars <= 32 && (value.quantum === void 0 || isQuantum(value.quantum)));
 var positionAt = (state, timestamp) => state.position + (state.playing ? Math.max(0, timestamp - state.timestamp) * state.bpm / 6e4 : 0);
 /** Match Timer's swing convention: delay odd divisions by a fraction of one division. */
 var networkTickTime = (state, tick) => state.timestamp + (tick / state.divisions - state.position + (tick % 2 ? state.swing / state.divisions : 0)) * 6e4 / state.bpm;
 // src/network-session.ts
+/** Revisions from successive leaders never collide, even when a change was only seen by some peers. */
+var LEADER_TERM = 2 ** 20;
 /** One transport and one audio scheduler per machine, independent of WS/WebRTC routing. */
 var NetworkSession = class {
 	constructor(timer, options) {
@@ -1524,12 +1610,31 @@ var NetworkSession = class {
 		this.sequence = 0;
 		this.ready = false;
 		this.ownsTimer = false;
+		this.rebasing = false;
 		this.timer = timer;
 		this.options = options;
 		this.now = options.now ?? (() => performance.now());
+		this.leaderId = options.leaderId;
+		this.latencyMs = 0;
+		this.outputLatencyMs = options.outputLatencyMs ?? 0;
 	}
 	get isLeader() {
-		return this.options.peerId === this.options.leaderId;
+		return this.options.peerId === this.leaderId;
+	}
+	get currentLeaderId() {
+		return this.leaderId;
+	}
+	get outputLatencyMs() {
+		return this.latencyMs;
+	}
+	set outputLatencyMs(value) {
+		const limit = this.lookahead - 300;
+		if (!Number.isFinite(value) || value < 0 || value > limit) throw new Error(`Output latency must be between 0 and ${limit} ms`);
+		this.latencyMs = value;
+		this.updateScheduler();
+	}
+	get lookahead() {
+		return Math.max(500, this.options.lookaheadMs ?? 600);
 	}
 	start() {
 		if (this.destroyed) return Promise.reject(/* @__PURE__ */ new Error("Session has been destroyed"));
@@ -1563,9 +1668,53 @@ var NetworkSession = class {
 		this.poll();
 	}
 	removePeer(id) {
+		const estimate = this.peers.get(id)?.clock.getEstimate(this.now());
+		if (id === this.leaderId && !this.freeRun && estimate?.locked) this.freeRun = {
+			offsetMs: estimate.offsetMs,
+			since: this.now()
+		};
 		this.peers.delete(id);
-		if (id === this.options.leaderId) this.scheduler?.clear();
+		this.updateScheduler();
 		this.emit();
+	}
+	/**
+	* Hand the transport to another peer without stopping playback. Every peer
+	* must make the same call; the new leader keeps the timeline, converted to
+	* its own clock, and followers adopt its copy.
+	*/
+	setLeader(id) {
+		if (this.destroyed || id === this.leaderId) return;
+		const previous = this.locked() ? this.offset() : void 0;
+		this.leaderId = id;
+		this.freeRun = void 0;
+		this.rebasing = !this.isLeader;
+		if (previous === void 0) {
+			if (!this.isLeader) this.timeline = [];
+		} else if (this.isLeader || this.peers.get(id)?.clock.getEstimate(this.now()).locked) this.shiftTimeline(this.offset() - previous);
+		else this.freeRun = {
+			offsetMs: previous,
+			since: this.now()
+		};
+		if (this.isLeader) {
+			const seen = Math.max(this.sequence, ...this.timeline.map((state) => state.revision));
+			this.sequence = (Math.floor(seen / LEADER_TERM) + 1) * LEADER_TERM;
+			for (const peer of this.peers.keys()) this.sendState(peer);
+		}
+		this.updateScheduler();
+		this.emit();
+	}
+	shiftTimeline(shift) {
+		this.timeline = this.timeline.map((state) => ({
+			...state,
+			timestamp: state.timestamp + shift
+		}));
+	}
+	/** The leader's clock became measurable again: move the timeline onto it and stop free-running. */
+	resumeFromFreeRun() {
+		const estimate = this.peers.get(this.leaderId)?.clock.getEstimate(this.now());
+		if (!this.freeRun || !estimate?.locked) return;
+		this.shiftTimeline(estimate.offsetMs - this.freeRun.offsetMs);
+		this.freeRun = void 0;
 	}
 	send(id, data) {
 		if (!this.destroyed) this.options.send(id, {
@@ -1579,10 +1728,65 @@ var NetworkSession = class {
 		return states[states.length - 1];
 	}
 	offset() {
-		return this.isLeader ? 0 : this.peers.get(this.options.leaderId)?.clock.getEstimate(this.now()).offsetMs ?? 0;
+		if (this.isLeader) return 0;
+		if (this.freeRun) return this.freeRun.offsetMs;
+		return this.peers.get(this.leaderId)?.clock.getEstimate(this.now()).offsetMs ?? 0;
 	}
 	locked() {
-		return this.isLeader || Boolean(this.peers.get(this.options.leaderId)?.clock.getEstimate(this.now()).locked);
+		if (this.isLeader) return true;
+		if (this.freeRun) return this.now() - this.freeRun.since <= (this.options.leaderGraceMs ?? 1e4);
+		return Boolean(this.peers.get(this.leaderId)?.clock.getEstimate(this.now()).locked);
+	}
+	/** Convert a time on the leader's clock to this machine's clock. */
+	toLocalTime(leaderTimeMs) {
+		if (this.isLeader) return leaderTimeMs;
+		const leader = this.peers.get(this.leaderId);
+		return leader && !this.freeRun ? leader.clock.leaderToLocalTime(leaderTimeMs) : leaderTimeMs - this.offset();
+	}
+	/** Convert a time on this machine's clock to the leader's clock. */
+	toLeaderTime(localTimeMs) {
+		if (this.isLeader) return localTimeMs;
+		const leader = this.peers.get(this.leaderId);
+		return leader && !this.freeRun ? leader.clock.localToLeaderTime(localTimeMs) : localTimeMs + this.offset();
+	}
+	/**
+	* The first bar line (a multiple of quantum beats) at least minLeadMs
+	* away. Stamp a cue with it and every peer applies the cue together.
+	* While stopped, the boundary is simply minLeadMs from now.
+	*/
+	nextBoundary(quantum, minLeadMs = this.lookahead) {
+		if (quantum !== void 0 && !isQuantum(quantum)) throw new Error("Quantum must be between 0 and 64 beats");
+		const { position, timestamp } = this.boundaryAfter(this.now() + this.offset() + Math.max(0, minLeadMs), quantum);
+		return {
+			position,
+			leaderTimeMs: timestamp,
+			localTimeMs: this.toLocalTime(timestamp)
+		};
+	}
+	boundaryAfter(leaderTimeMs, quantum) {
+		let index = this.timeline.reduce((found, state, at) => state.timestamp <= leaderTimeMs ? at : found, 0);
+		let from = leaderTimeMs;
+		while (true) {
+			const state = this.timeline[index];
+			if (!state) return {
+				position: 0,
+				timestamp: from
+			};
+			if (!state.playing) return {
+				position: positionAt(state, from),
+				timestamp: from
+			};
+			const beats = quantum ?? state.quantum ?? this.options.quantum ?? 4;
+			const position = Math.ceil(positionAt(state, from) / beats - 1e-9) * beats;
+			const timestamp = state.timestamp + (position - state.position) * 6e4 / state.bpm;
+			const next = this.timeline[index + 1];
+			if (!next || next.timestamp > timestamp) return {
+				position,
+				timestamp
+			};
+			index++;
+			from = next.timestamp;
+		}
 	}
 	applyTransport(state) {
 		if (this.activeRevision >= state.revision) return;
@@ -1595,7 +1799,7 @@ var NetworkSession = class {
 	}
 	updateScheduler() {
 		if (!this.ready) return;
-		const estimate = this.peers.get(this.options.leaderId)?.clock.getEstimate(this.now());
+		const estimate = this.peers.get(this.leaderId)?.clock.getEstimate(this.now());
 		this.timer.networkSync = {
 			mode: this.isLeader ? "network-leader" : "network-follower",
 			status: this.locked() ? "locked" : "probing",
@@ -1608,7 +1812,7 @@ var NetworkSession = class {
 			this.scheduler?.clear();
 			return;
 		}
-		this.scheduler?.setTimeline(this.timeline, this.offset());
+		this.scheduler?.setTimeline(this.timeline, this.offset(), this.latencyMs);
 		const state = this.current();
 		if (state) this.applyTransport(state);
 	}
@@ -1631,7 +1835,7 @@ var NetworkSession = class {
 		const state = this.current();
 		this.send(id, {
 			type: "state",
-			leaderId: this.options.leaderId,
+			leaderId: this.leaderId,
 			timestamp: this.now(),
 			playing: state?.playing ?? false,
 			position: state ? positionAt(state, this.now() + this.offset()) : 0,
@@ -1664,20 +1868,43 @@ var NetworkSession = class {
 				return;
 			}
 			peer.lastSeen = now;
+			if (id === this.leaderId) this.resumeFromFreeRun();
 			this.updateScheduler();
-		} else if (message.type === "state" && !this.isLeader && id === this.options.leaderId && message.leaderId === id && Array.isArray(message.timeline) && message.timeline.length > 0 && message.timeline.length <= 2 && message.timeline.every(isNetworkTransport)) {
+		} else if (message.type === "state" && !this.isLeader && !this.freeRun && id === this.leaderId && message.leaderId === id && Array.isArray(message.timeline) && message.timeline.length > 0 && message.timeline.length <= 2 && message.timeline.every(isNetworkTransport)) {
 			const incoming = message.timeline;
 			if (incoming.some((state, index) => index > 0 && (state.revision <= incoming[index - 1].revision || state.timestamp < incoming[index - 1].timestamp))) return;
-			if (incoming[incoming.length - 1].revision < (this.timeline[this.timeline.length - 1]?.revision ?? -1)) return;
-			for (const state of incoming) {
-				const existing = this.timeline.find((item) => item.revision === state.revision);
-				if (existing && JSON.stringify(existing) !== JSON.stringify(state)) return;
+			if (!this.rebasing) {
+				if (incoming[incoming.length - 1].revision < (this.timeline[this.timeline.length - 1]?.revision ?? -1)) return;
+				for (const state of incoming) {
+					const existing = this.timeline.find((item) => item.revision === state.revision);
+					if (existing && JSON.stringify(existing) !== JSON.stringify(state)) return;
+				}
 			}
+			if (this.rebasing) this.activeRevision = -1;
+			this.rebasing = false;
 			this.timeline = incoming;
 			peer.lastSeen = now;
 			this.updateScheduler();
+		} else if (message.type === "propose" && this.isLeader && this.ready) {
+			const change = readTransportChange(message.change);
+			if (change && this.options.acceptProposal?.(id, change)) try {
+				this.setTransport(change);
+			} catch {}
 		}
 		this.emit();
+	}
+	/** Ask the leader to change the transport; the leader applies it directly. */
+	requestTransport(change) {
+		if (this.isLeader) {
+			this.setTransport(change);
+			return;
+		}
+		const valid = readTransportChange(change);
+		if (!valid) throw new Error("Invalid transport change");
+		this.send(this.leaderId, {
+			type: "propose",
+			change: valid
+		});
 	}
 	/** Coalesce edits onto the same future bar; preserve position under tempo changes. */
 	setTransport(change, effectiveTimeMs) {
@@ -1687,13 +1914,7 @@ var NetworkSession = class {
 		const current = this.current();
 		const pending = this.timeline.find((state) => state.timestamp > now);
 		const base = pending ?? current;
-		let timestamp = pending?.timestamp ?? now + Math.max(500, this.options.lookaheadMs ?? 600);
-		let position = current ? positionAt(current, timestamp) : 0;
-		if (!pending && current?.playing) {
-			position = Math.ceil(position / 4) * 4;
-			timestamp = current.timestamp + (position - current.position) * 6e4 / current.bpm;
-		}
-		if (pending) position = pending.position;
+		let { timestamp, position } = pending ?? this.boundaryAfter(now + this.lookahead);
 		if (effectiveTimeMs !== void 0) {
 			if (!Number.isFinite(effectiveTimeMs) || effectiveTimeMs < now + 200) throw new Error("Transport changes need at least 200 ms of scheduling headroom");
 			timestamp = effectiveTimeMs;
@@ -1708,6 +1929,7 @@ var NetworkSession = class {
 			swing: base?.swing ?? this.timer.swing,
 			divisions: this.timer.divisions,
 			bars: this.timer.bars,
+			quantum: base?.quantum ?? this.options.quantum ?? 4,
 			...change
 		};
 		if (!isNetworkTransport(state)) throw new Error("Invalid shared transport");
@@ -1723,11 +1945,12 @@ var NetworkSession = class {
 		return {
 			role: this.isLeader ? "leader" : "follower",
 			ready: this.ready,
-			status: !this.isLeader && !this.peers.has(this.options.leaderId) ? "disconnected" : !locked ? "synchronizing" : this.timeline.some((s) => s.timestamp > this.now() + this.offset()) ? "armed" : "locked",
+			status: !this.isLeader && !this.peers.has(this.leaderId) ? "disconnected" : !locked ? "synchronizing" : this.timeline.some((s) => s.timestamp > this.now() + this.offset()) ? "armed" : "locked",
 			playing: state?.playing ?? false,
 			position: state ? positionAt(state, this.now() + this.offset()) : 0,
 			bpm: state?.bpm ?? this.timer.BPM,
 			swing: state?.swing ?? this.timer.swing,
+			quantum: state?.quantum ?? this.options.quantum ?? 4,
 			peers: [...this.peers].map(([id, peer]) => ({
 				id,
 				...peer.clock.getEstimate(this.now())
@@ -1745,6 +1968,7 @@ var NetworkSession = class {
 			await this.starting;
 		} catch {}
 		this.peers.clear();
+		this.freeRun = void 0;
 		this.timeline = [];
 		if (this.ownsTimer) {
 			await this.timer.stopTimer();
@@ -1756,6 +1980,19 @@ var NetworkSession = class {
 		this.ready = false;
 	}
 };
+/** Keep only well-typed transport fields; setTransport validates the resulting state. */
+function readTransportChange(value) {
+	if (!value || typeof value !== "object") return void 0;
+	const change = {};
+	if (typeof value.playing === "boolean") change.playing = value.playing;
+	for (const key of [
+		"bpm",
+		"swing",
+		"position",
+		"quantum"
+	]) if (Number.isFinite(value[key])) change[key] = value[key];
+	return Object.keys(change).length ? change : void 0;
+}
 // src/webrtc-sync.ts
 /** Single-peer compatibility facade. Use NetworkSession for rooms and multiple transports. */
 var WebRTCSyncController = class {
@@ -1948,6 +2185,6 @@ var WebRTCSyncController = class {
 	}
 };
 var createWebRTCSyncController = (timer, options) => new WebRTCSyncController(timer, options);
-export { AudioClock, AudioContextWorkerWrapper, AudioTimer, CMD_ADJUST_DRIFT, CMD_INITIALISE, CMD_START, CMD_STOP, CMD_UPDATE, DEFAULT_SYNC_OPTIONS, DEFAULT_SYNC_SESSION_SAMPLE_WINDOW, DEFAULT_TIMER_OPTIONS, EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK, MICROSECONDS_PER_MINUTE, NetworkSession, RollingTimeWorkerWrapper, SECONDS_PER_MINUTE, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper, SyncSession, TIMER_TYPES, TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, TIMER_TYPE_OPTIONS, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, Ticks, Timer, WORKLET_TIMER_TYPES, WebRTCSyncController, convertBPMToPeriod, convertMIDIClockIntervalToBPM, convertPeriodToBPM, createTimer, createWebRTCSyncController, formatTimeStampFromSeconds, getTimer, getTimerTypeDescription, isNetworkTransport, isValidTimerType, isWorkletTimerType, networkTickTime, positionAt, resetTimer, secondsToTicks, setTimeBetween, startTimer, stopTimer, tapTempo, tapTempoQuick };
+export { AudioClock, AudioContextWorkerWrapper, AudioTimer, CMD_ADJUST_DRIFT, CMD_INITIALISE, CMD_START, CMD_STOP, CMD_UPDATE, DEFAULT_QUANTUM, DEFAULT_SYNC_OPTIONS, DEFAULT_SYNC_SESSION_SAMPLE_WINDOW, DEFAULT_TIMER_OPTIONS, EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK, MICROSECONDS_PER_MINUTE, NetworkSession, RollingTimeWorkerWrapper, SECONDS_PER_MINUTE, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper, SyncSession, TIMER_TYPES, TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, TIMER_TYPE_OPTIONS, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, Ticks, Timer, WORKLET_TIMER_TYPES, WebRTCSyncController, convertBPMToPeriod, convertMIDIClockIntervalToBPM, convertPeriodToBPM, createTimer, createWebRTCSyncController, formatTimeStampFromSeconds, getTimer, getTimerTypeDescription, isNetworkTransport, isQuantum, isValidTimerType, isWorkletTimerType, networkTickTime, positionAt, resetTimer, secondsToTicks, setTimeBetween, startTimer, stopTimer, tapTempo, tapTempoQuick };
 
 //# sourceMappingURL=index.js.map
