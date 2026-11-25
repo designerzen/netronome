@@ -92,6 +92,25 @@ var tapTempo = (autoReset = true, timeOut = TAP_TIMEOUT, minimumTaps = MINIMUM_T
 		};
 	};
 };
+// src/ppq.ts
+/** Highest tick resolution the timer and shared transport accept. */
+var MAX_PPQ = 960;
+/**
+* Common pulses-per-quarter-note resolutions. 24 is the MIDI 1.0 clock; the rest are the
+* resolutions MIDI 2.0 clips declare with a Delta Clockstamp Ticks Per Quarter Note message.
+* Every value divides by four so each sixteenth note lands on a whole tick.
+*/
+var PPQ_OPTIONS = [
+	24,
+	48,
+	96,
+	192,
+	384,
+	480,
+	960
+];
+var DEFAULT_PPQ = 24;
+var isPPQ = (value) => typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 960;
 // src/time-utils.ts
 var SECONDS_PER_MINUTE = 60;
 var MICROSECONDS_PER_MINUTE = 6e4;
@@ -592,6 +611,29 @@ var Timer = class {
 	setBars(value) {
 		this.totalBars = value;
 		return this.bars;
+	}
+	/** Pulses per quarter note, the timer's tick resolution (MIDI 2.0 DCTPQ). */
+	get ppq() {
+		return this.divisions;
+	}
+	set ppq(value) {
+		this.setPPQ(value);
+	}
+	/**
+	* Change the tick resolution without changing tempo or musical position.
+	* Invalid values are ignored.
+	* @param value Pulses per quarter note, an integer from 1 to MAX_PPQ
+	* @returns the resolution now in effect
+	*/
+	setPPQ(value) {
+		const ppq = Number(value);
+		if (!isPPQ(ppq) || ppq === this.divisions) return this.divisions;
+		const bpm = this.BPM;
+		const progress = this.divisionsElapsed / this.divisions;
+		this.divisions = ppq;
+		this.divisionsElapsed = Math.min(ppq - 1, Math.floor(progress * ppq));
+		this.BPM = bpm;
+		return ppq;
 	}
 	/**
 	* Set the current timing using a BPM where 
@@ -1593,7 +1635,7 @@ async function createNetworkAudioScheduler(timer, onTransport) {
 // src/network-timeline.ts
 var DEFAULT_QUANTUM = 4;
 var isQuantum = (value) => typeof value === "number" && Number.isFinite(value) && value > 0 && value <= 64;
-var isNetworkTransport = (value) => Boolean(value && Number.isSafeInteger(value.revision) && value.revision >= 0 && typeof value.playing === "boolean" && Number.isFinite(value.timestamp) && Number.isFinite(value.position) && value.position >= 0 && Number.isFinite(value.bpm) && value.bpm >= 10 && value.bpm <= 300 && Number.isFinite(value.swing) && value.swing >= 0 && value.swing <= 1 && Number.isInteger(value.divisions) && value.divisions >= 1 && value.divisions <= 96 && Number.isInteger(value.bars) && value.bars >= 1 && value.bars <= 32 && (value.quantum === void 0 || isQuantum(value.quantum)));
+var isNetworkTransport = (value) => Boolean(value && Number.isSafeInteger(value.revision) && value.revision >= 0 && typeof value.playing === "boolean" && Number.isFinite(value.timestamp) && Number.isFinite(value.position) && value.position >= 0 && Number.isFinite(value.bpm) && value.bpm >= 10 && value.bpm <= 300 && Number.isFinite(value.swing) && value.swing >= 0 && value.swing <= 1 && isPPQ(value.divisions) && Number.isInteger(value.bars) && value.bars >= 1 && value.bars <= 32 && (value.quantum === void 0 || isQuantum(value.quantum)));
 var positionAt = (state, timestamp) => state.position + (state.playing ? Math.max(0, timestamp - state.timestamp) * state.bpm / 6e4 : 0);
 /** Match Timer's swing convention: delay odd divisions by a fraction of one division. */
 var networkTickTime = (state, tick) => state.timestamp + (tick / state.divisions - state.position + (tick % 2 ? state.swing / state.divisions : 0)) * 6e4 / state.bpm;
@@ -1791,9 +1833,9 @@ var NetworkSession = class {
 	applyTransport(state) {
 		if (this.activeRevision >= state.revision) return;
 		this.activeRevision = state.revision;
+		this.timer.setPPQ(state.divisions);
 		this.timer.BPM = state.bpm;
 		this.timer.swing = state.swing;
-		this.timer.divisions = state.divisions;
 		this.timer.bars = state.bars;
 		this.options.onTransport?.(state);
 	}
@@ -1950,6 +1992,7 @@ var NetworkSession = class {
 			position: state ? positionAt(state, this.now() + this.offset()) : 0,
 			bpm: state?.bpm ?? this.timer.BPM,
 			swing: state?.swing ?? this.timer.swing,
+			divisions: state?.divisions ?? this.timer.divisions,
 			quantum: state?.quantum ?? this.options.quantum ?? 4,
 			peers: [...this.peers].map(([id, peer]) => ({
 				id,
@@ -1991,6 +2034,7 @@ function readTransportChange(value) {
 		"position",
 		"quantum"
 	]) if (Number.isFinite(value[key])) change[key] = value[key];
+	if (isPPQ(value.divisions)) change.divisions = value.divisions;
 	return Object.keys(change).length ? change : void 0;
 }
 // src/webrtc-sync.ts
@@ -2185,6 +2229,6 @@ var WebRTCSyncController = class {
 	}
 };
 var createWebRTCSyncController = (timer, options) => new WebRTCSyncController(timer, options);
-export { AudioClock, AudioContextWorkerWrapper, AudioTimer, CMD_ADJUST_DRIFT, CMD_INITIALISE, CMD_START, CMD_STOP, CMD_UPDATE, DEFAULT_QUANTUM, DEFAULT_SYNC_OPTIONS, DEFAULT_SYNC_SESSION_SAMPLE_WINDOW, DEFAULT_TIMER_OPTIONS, EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK, MICROSECONDS_PER_MINUTE, NetworkSession, RollingTimeWorkerWrapper, SECONDS_PER_MINUTE, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper, SyncSession, TIMER_TYPES, TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, TIMER_TYPE_OPTIONS, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, Ticks, Timer, WORKLET_TIMER_TYPES, WebRTCSyncController, convertBPMToPeriod, convertMIDIClockIntervalToBPM, convertPeriodToBPM, createTimer, createWebRTCSyncController, formatTimeStampFromSeconds, getTimer, getTimerTypeDescription, isNetworkTransport, isQuantum, isValidTimerType, isWorkletTimerType, networkTickTime, positionAt, resetTimer, secondsToTicks, setTimeBetween, startTimer, stopTimer, tapTempo, tapTempoQuick };
+export { AudioClock, AudioContextWorkerWrapper, AudioTimer, CMD_ADJUST_DRIFT, CMD_INITIALISE, CMD_START, CMD_STOP, CMD_UPDATE, DEFAULT_PPQ, DEFAULT_QUANTUM, DEFAULT_SYNC_OPTIONS, DEFAULT_SYNC_SESSION_SAMPLE_WINDOW, DEFAULT_TIMER_OPTIONS, EVENT_READY, EVENT_STARTING, EVENT_STOPPING, EVENT_TICK, MAX_PPQ, MICROSECONDS_PER_MINUTE, NetworkSession, PPQ_OPTIONS, RollingTimeWorkerWrapper, SECONDS_PER_MINUTE, SetIntervalWorkerWrapper, SetTimeoutWorkerWrapper, SyncSession, TIMER_TYPES, TIMER_TYPE_AUDIO_CONTEXT, TIMER_TYPE_AUDIO_WORKLET, TIMER_TYPE_ELASTIC_AUDIO_WORKLET, TIMER_TYPE_OPTIONS, TIMER_TYPE_ROLLING, TIMER_TYPE_SET_INTERVAL, TIMER_TYPE_SET_TIMEOUT, Ticks, Timer, WORKLET_TIMER_TYPES, WebRTCSyncController, convertBPMToPeriod, convertMIDIClockIntervalToBPM, convertPeriodToBPM, createTimer, createWebRTCSyncController, formatTimeStampFromSeconds, getTimer, getTimerTypeDescription, isNetworkTransport, isPPQ, isQuantum, isValidTimerType, isWorkletTimerType, networkTickTime, positionAt, resetTimer, secondsToTicks, setTimeBetween, startTimer, stopTimer, tapTempo, tapTempoQuick };
 
 //# sourceMappingURL=index.js.map

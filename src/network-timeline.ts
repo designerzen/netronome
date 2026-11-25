@@ -1,3 +1,5 @@
+import { isPPQ } from './ppq'
+
 /** Position is measured in quarter notes; timestamp is in leader performance milliseconds. */
 export interface NetworkTransport {
     revision: number
@@ -24,7 +26,7 @@ export const isNetworkTransport = (value: any): value is NetworkTransport => Boo
     && Number.isFinite(value.position) && value.position >= 0
     && Number.isFinite(value.bpm) && value.bpm >= 10 && value.bpm <= 300
     && Number.isFinite(value.swing) && value.swing >= 0 && value.swing <= 1
-    && Number.isInteger(value.divisions) && value.divisions >= 1 && value.divisions <= 96
+    && isPPQ(value.divisions)
     && Number.isInteger(value.bars) && value.bars >= 1 && value.bars <= 32
     && (value.quantum === undefined || isQuantum(value.quantum)))
 

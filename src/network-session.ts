@@ -1,9 +1,10 @@
 import type Timer from './timer'
 import SyncSession from './sync-session'
 import { createNetworkAudioScheduler, type NetworkScheduler } from './network-audio-scheduler'
+import { isPPQ } from './ppq'
 import { DEFAULT_QUANTUM, isNetworkTransport, isQuantum, positionAt, type NetworkTransport } from './network-timeline'
 
-export type TransportChange = Partial<Pick<NetworkTransport, 'playing' | 'bpm' | 'swing' | 'position' | 'quantum'>>
+export type TransportChange = Partial<Pick<NetworkTransport, 'playing' | 'bpm' | 'swing' | 'position' | 'quantum' | 'divisions'>>
 
 export interface TransportBoundary {
     position: number
@@ -210,9 +211,10 @@ export class NetworkSession {
     private applyTransport(state: NetworkTransport): void {
         if (this.activeRevision >= state.revision) return
         this.activeRevision = state.revision
+        // Resolution first: it rescales the tick period, which the tempo then sets.
+        this.timer.setPPQ(state.divisions)
         this.timer.BPM = state.bpm
         this.timer.swing = state.swing
-        this.timer.divisions = state.divisions
         this.timer.bars = state.bars
         this.options.onTransport?.(state)
     }
@@ -338,6 +340,7 @@ export class NetworkSession {
                 : !locked ? 'synchronizing' : this.timeline.some(s => s.timestamp > this.now() + this.offset()) ? 'armed' : 'locked',
             playing: state?.playing ?? false, position: state ? positionAt(state, this.now() + this.offset()) : 0,
             bpm: state?.bpm ?? this.timer.BPM, swing: state?.swing ?? this.timer.swing,
+            divisions: state?.divisions ?? this.timer.divisions,
             quantum: state?.quantum ?? this.options.quantum ?? DEFAULT_QUANTUM,
             peers: [...this.peers].map(([id, peer]) => ({ id, ...peer.clock.getEstimate(this.now()) })) }
     }
@@ -369,5 +372,6 @@ function readTransportChange(value: any): TransportChange | undefined {
     for (const key of ['bpm', 'swing', 'position', 'quantum'] as const) {
         if (Number.isFinite(value[key])) change[key] = value[key]
     }
+    if (isPPQ(value.divisions)) change.divisions = value.divisions
     return Object.keys(change).length ? change : undefined
 }

@@ -1,7 +1,7 @@
 import type Timer from './timer';
 import { type NetworkScheduler } from './network-audio-scheduler';
 import { type NetworkTransport } from './network-timeline';
-export type TransportChange = Partial<Pick<NetworkTransport, 'playing' | 'bpm' | 'swing' | 'position' | 'quantum'>>;
+export type TransportChange = Partial<Pick<NetworkTransport, 'playing' | 'bpm' | 'swing' | 'position' | 'quantum' | 'divisions'>>;
 export interface TransportBoundary {
     position: number;
     leaderTimeMs: number;
@@ -104,6 +104,7 @@ export declare class NetworkSession {
         position: number;
         bpm: number;
         swing: number;
+        divisions: number;
         quantum: number;
         peers: {
             offsetMs: number;

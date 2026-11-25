@@ -174,6 +174,16 @@ export default class Timer {
      */
     set totalBars(value: number);
     setBars(value: number): number;
+    /** Pulses per quarter note, the timer's tick resolution (MIDI 2.0 DCTPQ). */
+    get ppq(): number;
+    set ppq(value: number);
+    /**
+     * Change the tick resolution without changing tempo or musical position.
+     * Invalid values are ignored.
+     * @param value Pulses per quarter note, an integer from 1 to MAX_PPQ
+     * @returns the resolution now in effect
+     */
+    setPPQ(value: number): number;
     /**
      * Set the current timing using a BPM where
      * one beat in milliseconds =  60,000 / BPM

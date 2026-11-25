@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NetworkSession } from '../../src/network-session'
 
 const timer = () => ({ loaded: Promise.resolve(), BPM: 120, swing: 0, divisions: 24, bars: 16,
+    setPPQ(value: number) { this.divisions = value },
     bypass: vi.fn(), startTimer: vi.fn(async () => {}), stopTimer: vi.fn(async () => {}) }) as any
 const scheduler = () => ({ setTimeline: vi.fn(), clear: vi.fn(), destroy: vi.fn() })
 

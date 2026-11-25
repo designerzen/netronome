@@ -5,6 +5,7 @@ import SyncSession from '../../src/sync-session'
 import Timer from '../../src/timer'
 
 const timer = () => ({ loaded: Promise.resolve(), BPM: 120, swing: 0, divisions: 24, bars: 16,
+    setPPQ(value: number) { this.divisions = value },
     bypass: vi.fn(), startTimer: vi.fn(async () => {}), stopTimer: vi.fn(async () => {}) }) as any
 const scheduler = () => ({ setTimeline: vi.fn(), clear: vi.fn(), destroy: vi.fn() })
 

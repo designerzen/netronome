@@ -9,6 +9,7 @@ import {
 } from './timer-event-types'
 
 import { tapTempoQuick } from './tap-tempo'
+import { isPPQ } from './ppq'
 import { Ticks, MICROSECONDS_PER_MINUTE, SECONDS_PER_MINUTE } from './time-utils'
 import type { AudioTickTiming, SyncMode, TimerSyncOptions, TimerSyncMetadata, WorkerWrapper } from './timer-interfaces'
 
@@ -430,6 +431,34 @@ export default class Timer {
     setBars(value: number): number {
         this.totalBars = value
         return this.bars
+    }
+
+    /** Pulses per quarter note, the timer's tick resolution (MIDI 2.0 DCTPQ). */
+    get ppq(): number {
+        return this.divisions
+    }
+    set ppq(value: number) {
+        this.setPPQ(value)
+    }
+
+    /**
+     * Change the tick resolution without changing tempo or musical position.
+     * Invalid values are ignored.
+     * @param value Pulses per quarter note, an integer from 1 to MAX_PPQ
+     * @returns the resolution now in effect
+     */
+    setPPQ(value: number): number {
+        const ppq = Number(value)
+        if (!isPPQ(ppq) || ppq === this.divisions) {
+            return this.divisions
+        }
+        const bpm = this.BPM
+        const progress = this.divisionsElapsed / this.divisions
+        this.divisions = ppq
+        this.divisionsElapsed = Math.min(ppq - 1, Math.floor(progress * ppq))
+        // The tick period is per division, so re-apply the tempo at the new resolution.
+        this.BPM = bpm
+        return ppq
     }
 
     /**
